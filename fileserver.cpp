@@ -172,7 +172,7 @@ main(int argc, char *argv[])
             if(file_status == 2)
                 file_name = file_name.substr(0, file_name.size()-4);
 
-            string response = (char)file_status + file_name;
+            string response = to_string(file_status) + file_name;
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
                     response.c_str());
