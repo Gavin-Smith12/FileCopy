@@ -83,7 +83,7 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void checkDirectory(char *dirname);
-void sendMessage(string msgTxt, char msgCode, C150DgmSocket *sock);
+void sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock);
 void sha1file(const char *filename, char *sha1);
 
 
@@ -180,13 +180,18 @@ main(int argc, char *argv[]) {
 				(strcmp(sourceFile -> d_name, "..") == 0 )) {
 				continue;          // never copy . or ..
 			}
-			// Send the message REQ_CHK to the server
-			char *sha1 = (char *) malloc(40);
 			
+			// Get the SHA-1 of the file
+			char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
+
 			string filepath = dirname + string(sourceFile -> d_name);
 			sha1file(filepath.c_str(), sha1);
+
+			// Concatenate strings to create message text to send
 			string msgTxt = string(sha1) + string(sourceFile -> d_name);
-			sendMessage(msgTxt, REQ_CHK, sock);
+
+			// Send the message REQ_CHK to the server
+			sendMessageToServer(msgTxt, REQ_CHK, sock);
 		}
 		closedir(SRC);
 	}
@@ -341,7 +346,7 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
                   C150NETWORKDELIVERY); 
 }
 
-void sendMessage(string msgTxt, char msgCode, C150DgmSocket *sock)
+void sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
 {
     char incomingMsg[512];
     ssize_t readlen; 
@@ -354,7 +359,7 @@ void sendMessage(string msgTxt, char msgCode, C150DgmSocket *sock)
         sock -> write(msg.c_str(), msg.size()+1); // +1 includes the null
 
         // Read the response from the server
-
+		//
         c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
               "pingclient");
         readlen = sock -> read(incomingMsg, sizeof(incomingMsg));
@@ -386,23 +391,25 @@ void sha1file(const char *filename, char *sha1) {
     ifstream *t;
     stringstream *buffer;
 	unsigned char temp[SHA_DIGEST_LENGTH];
-	char ostr[SHA_DIGEST_LENGTH * 2];
+	char ostr[(SHA_DIGEST_LENGTH * 2) + 1];
+
+	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1);
+	memset(temp, 0, SHA_DIGEST_LENGTH);
 
     t = new ifstream(filename);
     buffer = new stringstream;
     *buffer << t->rdbuf();
     SHA1((const unsigned char *)buffer->str().c_str(), 
             (buffer->str()).length(), temp);
-
-	memset(ostr, 0, SHA_DIGEST_LENGTH * 2);
-	memset(temp, 0, SHA_DIGEST_LENGTH);
+	
 	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
 	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
         sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
     }
-	// printf("ostr: %s\n", ostr);
-	memcpy(sha1, ostr, SHA_DIGEST_LENGTH * 2);
-	// printf("sha1: %s\n", sha1);
+
+	memcpy(sha1, ostr, (SHA_DIGEST_LENGTH * 2) + 1);
+
+	printf("filename: %s\n", filename);
 
     delete t;
     delete buffer;
