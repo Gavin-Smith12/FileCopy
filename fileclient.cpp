@@ -181,7 +181,7 @@ main(int argc, char *argv[]) {
 				continue;          // never copy . or ..
 			}
 			// Send the message REQ_CHK to the server
-			char *sha1 = (char *) malloc(20);
+			char *sha1 = (char *) malloc(40);
 			
 			string filepath = dirname + string(sourceFile -> d_name);
 			sha1file(filepath.c_str(), sha1);
@@ -383,15 +383,27 @@ void checkDirectory(char *dirname) {
 }
 
 void sha1file(const char *filename, char *sha1) {
- 	ifstream *t;
-  	stringstream *buffer;
+    ifstream *t;
+    stringstream *buffer;
+	unsigned char temp[SHA_DIGEST_LENGTH];
+	char ostr[SHA_DIGEST_LENGTH * 2];
 
-	t = new ifstream(filename);
-	buffer = new stringstream;
-	*buffer << t->rdbuf();
-	SHA1((const unsigned char *)buffer->str().c_str(), 
-			(buffer->str()).length(), (unsigned char*) sha1);
+    t = new ifstream(filename);
+    buffer = new stringstream;
+    *buffer << t->rdbuf();
+    SHA1((const unsigned char *)buffer->str().c_str(), 
+            (buffer->str()).length(), temp);
 
-	delete t;
-	delete buffer;
+	memset(ostr, 0, SHA_DIGEST_LENGTH * 2);
+	memset(temp, 0, SHA_DIGEST_LENGTH);
+	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
+	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
+    }
+	// printf("ostr: %s\n", ostr);
+	memcpy(sha1, ostr, SHA_DIGEST_LENGTH * 2);
+	// printf("sha1: %s\n", sha1);
+
+    delete t;
+    delete buffer;
 }

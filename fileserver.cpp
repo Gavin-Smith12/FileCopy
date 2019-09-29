@@ -165,8 +165,8 @@ main(int argc, char *argv[])
     			    readlen, incoming.c_str());
 
           if(incoming[0] == '0') {
-            string file_hash = incoming.substr(1, 20);
-            string file_name = incoming.substr(21) + ".tmp";
+            string file_hash = incoming.substr(1, 40);
+            string file_name = incoming.substr(41) + ".tmp";
             int file_status = endCheck(file_name, file_hash, (string)directory);
 
             if(file_status == 2)
@@ -284,7 +284,7 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
 }
 
 int endCheck(string file_name, string file_hash, string directory) {
-    char *sha1 = (char *) malloc(20);
+    char *sha1 = (char *) malloc(SHA_DIGEST_LENGTH * 2);
     file_name = directory + "/" + file_name;
     const char *filename = file_name.c_str();
 
@@ -299,14 +299,23 @@ int endCheck(string file_name, string file_hash, string directory) {
 void sha1file(const char *filename, char *sha1) {
     ifstream *t;
     stringstream *buffer;
+	unsigned char temp[SHA_DIGEST_LENGTH];
+	char ostr[SHA_DIGEST_LENGTH * 2];
 
     t = new ifstream(filename);
     buffer = new stringstream;
     *buffer << t->rdbuf();
     SHA1((const unsigned char *)buffer->str().c_str(), 
-            (buffer->str()).length(), (unsigned char*) sha1);
+            (buffer->str()).length(), temp);
+
+	memset(ostr, 0, SHA_DIGEST_LENGTH * 2);
+	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
+	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
+    }
+	printf("ostr: %s\n", ostr);
+	memcpy(sha1, ostr, SHA_DIGEST_LENGTH * 2);
 
     delete t;
     delete buffer;
 }
-
