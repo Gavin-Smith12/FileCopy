@@ -164,7 +164,7 @@ main(int argc, char *argv[]) {
         (strcmp(sourceFile->d_name, "..")  == 0 )) 
           continue;          // never copy . or ..
 
-        sendMessage(sourceFile->d_name, 0, sock);
+        sendMessage(sourceFile->d_name, '0', sock);
       }
       closedir(SRC);
   }
@@ -182,7 +182,6 @@ main(int argc, char *argv[]) {
         cerr << argv[0] << ": caught C150NetworkException: " << e.formattedExplanation() << endl;
     } 
 
-     throw C150NetworkException("The server is not responding");
      return 0;
  }
 
