@@ -62,7 +62,8 @@
 using namespace C150NETWORK;  // for all the comp150 utilities 
 
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-int endCheck(string file_name, string file_hash);
+int endCheck(string file_name, string file_hash, string directory);
+void sha1file(const char *filename, char *sha1);
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -87,11 +88,12 @@ main(int argc, char *argv[])
      ssize_t readlen;             // amount of data read from socket
      char incomingMessage[512];   // received message data
      int nastiness;               // how aggressively do we drop packets, etc?
+     char *directory = argv[3];
 
      //
      // Check command line and parse arguments
      //
-     if (argc != 2)  {
+     if (argc != 4)  {
        fprintf(stderr,"Correct syntxt is: %s <nastiness_number>\n", argv[0]);
           exit(1);
      }
@@ -164,8 +166,12 @@ main(int argc, char *argv[])
 
           if(incoming[0] == '0') {
             string file_hash = incoming.substr(1, 20);
-            string file_name = incoming.substr(21);
-            int file_status = endCheck(file_name, file_hash);
+            string file_name = incoming.substr(21) + ".tmp";
+            int file_status = endCheck(file_name, file_hash, (string)directory);
+
+            if(file_status == 2)
+                file_name = file_name.substr(0, file_name.size()-4);
+
             string response = (char)file_status + file_name;
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
@@ -173,8 +179,8 @@ main(int argc, char *argv[])
             sock -> write(response.c_str(), response.length()+1);
 
           } 
-          else if(incoming[0] == '0') {
-            string response = "7";
+          else if(incoming[0] == '5') {
+            string response = "7" + incoming.substr(1);
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
                     response.c_str());
@@ -277,8 +283,30 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
 
 }
 
-int endCheck(string file_name, string file_hash) {
-    /* TODO add SHA */
-    return 1;
+int endCheck(string file_name, string file_hash, string directory) {
+    char *sha1 = (char *) malloc(20);
+    file_name = directory + "/" + file_name;
+    const char *filename = file_name.c_str();
+
+    sha1file(filename, sha1);
+    if((string)sha1 == file_hash)
+        return 2;
+    else 
+        return 3;
+
+}
+
+void sha1file(const char *filename, char *sha1) {
+    ifstream *t;
+    stringstream *buffer;
+
+    t = new ifstream(filename);
+    buffer = new stringstream;
+    *buffer << t->rdbuf();
+    SHA1((const unsigned char *)buffer->str().c_str(), 
+            (buffer->str()).length(), (unsigned char*) sha1);
+
+    delete t;
+    delete buffer;
 }
 

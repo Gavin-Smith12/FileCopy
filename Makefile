@@ -48,14 +48,14 @@ all: nastyfiletest makedatafile sha1test fileclient fileserver
 #
 # Build the fileclient
 #
-fileclient: fileClient.cpp  $(C150AR) $(INCLUDES)
-	$(CPP) -o fileclient  $(CPPFLAGS) fileClient.cpp $(C150AR) -lssl -lcrypto
+fileclient: fileclient.cpp  $(C150AR) $(INCLUDES)
+	$(CPP) -o fileclient  $(CPPFLAGS) fileclient.cpp $(C150AR) -lssl -lcrypto
 
 #
 # Build the fileclient
 #
-fileserver: fileServer.cpp  $(C150AR) $(INCLUDES)
-	$(CPP) -o fileserver  $(CPPFLAGS) fileServer.cpp $(C150AR) -lssl -lcrypto
+fileserver: fileserver.cpp  $(C150AR) $(INCLUDES)
+	$(CPP) -o fileserver  $(CPPFLAGS) fileserver.cpp $(C150AR) -lssl -lcrypto
 
 #
 # Build the nastyfiletest sample
