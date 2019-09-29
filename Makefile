@@ -52,6 +52,12 @@ fileclient: fileClient.cpp  $(C150AR) $(INCLUDES)
 	$(CPP) -o fileclient  $(CPPFLAGS) fileClient.cpp $(C150AR)
 
 #
+# Build the fileclient
+#
+fileserver: fileServer.cpp  $(C150AR) $(INCLUDES)
+	$(CPP) -o fileserver  $(CPPFLAGS) fileServer.cpp $(C150AR)
+
+#
 # Build the nastyfiletest sample
 #
 nastyfiletest: nastyfiletest.cpp  $(C150AR) $(INCLUDES)

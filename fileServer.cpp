@@ -55,12 +55,14 @@
 #include "c150debug.h"
 #include "c150grading.h"
 #include <fstream>
-#include <cstdlib> 
+#include <cstdlib>
+#include <openssl/sha.h> 
 
 
 using namespace C150NETWORK;  // for all the comp150 utilities 
 
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
+int endCheck(string file_name, string file_hash);
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -138,45 +140,48 @@ main(int argc, char *argv[])
        //
        while(1)	{
 
-	  //
-          // Read a packet
-	  // -1 in size below is to leave room for null
-	  //
-	  readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
-	  if (readlen == 0) {
-	    c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
-	    continue;
-	  }
+    	  //
+              // Read a packet
+    	  // -1 in size below is to leave room for null
+    	  //
+    	  readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
+    	  if (readlen == 0) {
+    	    c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
+    	    continue;
+    	  }
 
-	  //
-	  // Clean up the message in case it contained junk
-	  //
-	  incomingMessage[readlen] = '\0'; // make sure null terminated
-	  string incoming(incomingMessage); // Convert to C++ string ...it's slightly
-	                                    // easier to work with, and cleanString
-	                                    // expects it
-	  cleanString(incoming);            // c150ids-supplied utility: changes
-	                                    // non-printing characters to .
-          c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
-			    readlen, incoming.c_str());
+    	  //
+    	  // Clean up the message in case it contained junk
+    	  //
+    	  incomingMessage[readlen] = '\0'; // make sure null terminated
+    	  string incoming(incomingMessage); // Convert to C++ string ...it's slightly
+    	                                    // easier to work with, and cleanString
+    	                                    // expects it
+    	  cleanString(incoming);            // c150ids-supplied utility: changes
+    	                                    // non-printing characters to .
+              c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
+    			    readlen, incoming.c_str());
 
-	  //
-	  //  create the message to return
-	  // 
-	  string response = "You said " + incoming;
-	  if (incoming=="ping" || incoming == "Ping" || incoming == "PING") 
-	    response += " and I say PONG. Thank you for playing!";
-	  else
-	    response += ". Don't you know how to play ping pong?";
+          if(incoming[0] == '0') {
+            string file_hash = incoming.substr(1, 20);
+            string file_name = incoming.substr(21);
+            int file_status = endCheck(file_name, file_hash);
+            string response = (char)file_status + file_name;
 
-	  //
-	  // write the return message
-	  //
-	  c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
-			    response.c_str());
-	  sock -> write(response.c_str(), response.length()+1);
-	}
-     }
+            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+                    response.c_str());
+            sock -> write(response.c_str(), response.length()+1);
+
+          } 
+          else if(incoming[0] == '0') {
+            string response = "7";
+
+            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+                    response.c_str());
+            sock -> write(response.c_str(), response.length()+1);
+          }
+	   }
+     } 
 
      catch (C150NetworkException& e) {
        // Write to debug log
@@ -270,5 +275,10 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
      c150debug->enableLogging(C150APPLICATION | C150NETWORKTRAFFIC | 
 			      C150NETWORKDELIVERY); 
 
+}
+
+int endCheck(string file_name, string file_hash) {
+    /* TODO add SHA */
+    return 1;
 }
 
