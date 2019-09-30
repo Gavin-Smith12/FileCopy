@@ -165,7 +165,7 @@ main(int argc, char *argv[])
     			    readlen, incoming.c_str());
 
           if(incoming[0] == '0') {
-            string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2) + 1);
+            string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2));
 			cout << file_hash << endl;
             string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
             int file_status = endCheck(file_name, file_hash, (string)directory);

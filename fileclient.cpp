@@ -83,7 +83,7 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void checkDirectory(char *dirname);
-void sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock);
+string sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock);
 void sha1file(const char *filename, char *sha1);
 
 
@@ -191,9 +191,15 @@ main(int argc, char *argv[]) {
 			string msgTxt = string(sha1) + string(sourceFile -> d_name);
 
 			// Send the message REQ_CHK to the server
-			sendMessageToServer(msgTxt, REQ_CHK, sock);
+			string server_response = sendMessageToServer(msgTxt, REQ_CHK, sock);
+
+            if(server_response[0] == '2' || server_response[0] == '3') {
+                sendMessageToServer(server_response.substr(1), '5', sock);
+            }
 		}
 		closedir(SRC);
+
+
 	}
 
     //
@@ -346,7 +352,7 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
                   C150NETWORKDELIVERY); 
 }
 
-void sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
+string sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
 {
     char incomingMsg[512];
     ssize_t readlen; 
@@ -354,6 +360,7 @@ void sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
 
     while(send_message_again == true) {
         string msg = msgCode + msgTxt;
+        cout << "string message: " << msg << endl;
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
         sock -> write(msg.c_str(), msg.size()+1); // +1 includes the null
@@ -370,8 +377,10 @@ void sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
         } else {
             send_message_again = false;
             checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
+            return string(incomingMsg);
         }
     }
+    exit(1);
 }
 
 void checkDirectory(char *dirname) {
