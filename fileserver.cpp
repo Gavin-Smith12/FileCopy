@@ -182,9 +182,10 @@ main(int argc, char *argv[])
           else if(incoming[0] == '5') {
             string response = "7" + incoming.substr(1);
             string file_name = incoming.substr(1);
+            string file_path = string(argv[3]) + "/";
             *GRADING << "File: " << file_name << " end-to-end check succeeded" << endl;
             cout << "File: " << file_name << " passed end-to-end check.\n" << endl;
-            if(!rename((file_name + ".tmp").c_str(), file_name.c_str()))
+            if(rename((file_path + file_name + ".tmp").c_str(), (file_path + file_name).c_str()))
                 cerr << "Could not rename file\n" << endl;
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
