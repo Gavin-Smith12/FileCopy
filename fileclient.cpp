@@ -91,8 +91,9 @@ void sha1file(const char *filename, char *sha1);
 #define REQ_CHK  '0'
 #define CHK_SUCC '2'
 #define CHK_FAIL '3'
-#define CHK_ACK  '5'
-#define ACK      '7'
+#define ACK_SUCC '5'
+#define ACK_FAIL '6'
+#define FIN_ACK  '7'
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -179,7 +180,7 @@ main(int argc, char *argv[]) {
 			if ((strcmp(sourceFile -> d_name, ".") == 0) ||
 				(strcmp(sourceFile -> d_name, "..") == 0 )) {
 				continue;          // never copy . or ..
-			}
+			} 
 			
 			// Get the SHA-1 of the file
 			char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
@@ -193,9 +194,17 @@ main(int argc, char *argv[]) {
 			// Send the message REQ_CHK to the server
 			string server_response = sendMessageToServer(msgTxt, REQ_CHK, sock);
 
-            if(server_response[0] == '2' || server_response[0] == '3') {
-                sendMessageToServer(server_response.substr(1), '5', sock);
+            if(server_response[0] == CHK_SUCC) {
+				*GRADING << "File: " << sourceFile -> d_name << " end-to-end check succeeded, attempt " << 1 << endl;
+				server_response = sendMessageToServer(sourceFile -> d_name, ACK_SUCC, sock);
+			} else if (server_response[0] == CHK_FAIL) {
+                *GRADING << "File: " << sourceFile -> d_name << " end-to-end check failed, attempt " << 1 << endl;
+				server_response = sendMessageToServer(sourceFile -> d_name, ACK_FAIL, sock);
             }
+			if (server_response[0] == FIN_ACK) {
+				// End-to-end check complete
+				cout << "End-to-end check complete." << endl;
+			}
 		}
 		closedir(SRC);
 
@@ -365,11 +374,21 @@ string sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
                       "fileclient", msg);
         sock -> write(msg.c_str(), msg.size()+1); // +1 includes the null
 
+		// File: <name>, beginning transmission, attempt <attempt>
+		// TODO: FILENAME needs to be variable
+		*GRADING << "File: " << "FILENAME" " , beginning transmission, attempt " << 1 << endl;
+
+		// File: <name> transmission complete, waiting for end-to-end check, attempt <attempt>
+		// TODO: FILENAME needs to be variable
+		*GRADING << "File: " << "FILENAME" << " transmission complete, waiting for end-to-end check, attempt " << 1 << endl;
+
         // Read the response from the server
 		//
         c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
               "pingclient");
         readlen = sock -> read(incomingMsg, sizeof(incomingMsg));
+
+		
 
         // Iterate counter after timing out of a read
         if((sock -> timedout() == true)) {
