@@ -66,6 +66,13 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 int endCheck(string file_name, string file_hash, string directory);
 void sha1file(const char *filename, char *sha1);
 
+#define REQ_CHK  '0'
+#define CHK_SUCC '2'
+#define CHK_FAIL '3'
+#define ACK_SUCC '5'
+#define ACK_FAIL '6'
+#define FIN_ACK  '7'
+
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 //
@@ -165,13 +172,23 @@ main(int argc, char *argv[])
               c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
     			    readlen, incoming.c_str());
 
-          if(incoming[0] == '0') {
+          //If the incoming message is the initial check we have to start the 
+          //end-to-end check
+          if(incoming[0] == REQ_CHK) {
+            //Get the hash of the file out of the message
             string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2));
+            //Get the file name out of the message and add .tmp because it 
+            //has not been checked yet
             string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
+
+            //Grading statements, will be changed once file copy is added
             *GRADING << "File: " << file_name.substr(file_name.length()-4) << " starting to receive file" << endl;
             *GRADING << "File: " << file_name.substr(file_name.length()-4) << " received, beginning end-to-end check" << endl;
+
+            //Calls the end to end check which reports 2 with success and 3 with failure
             int file_status = endCheck(file_name, file_hash, (string)directory);
 
+            //Response is the message code with the file name 
             string response = to_string(file_status) + incoming.substr((SHA_DIGEST_LENGTH * 2) + 1);
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
@@ -179,12 +196,17 @@ main(int argc, char *argv[])
             sock -> write(response.c_str(), response.length()+1);
 
           } 
-          else if(incoming[0] == '5') {
-            string response = "7" + incoming.substr(1);
+          //If the incoming message is an acknowledgement of success
+          else if(incoming[0] == ACK_SUCC) {
+            //Attach 7 for the final acknowledgement
+            string response = FIN_ACK + incoming.substr(1);
+            //Get file name and path
             string file_name = incoming.substr(1);
             string file_path = string(argv[3]) + "/";
             *GRADING << "File: " << file_name << " end-to-end check succeeded" << endl;
+            //Print a message saying that file passed
             cout << "File: " << file_name << " passed end-to-end check.\n" << endl;
+            //Rename the file to get rid of the .tmp extension
             if(rename((file_path + file_name + ".tmp").c_str(), (file_path + file_name).c_str()))
                 cerr << "Could not rename file\n" << endl;
 
@@ -192,10 +214,13 @@ main(int argc, char *argv[])
                     response.c_str());
             sock -> write(response.c_str(), response.length()+1);
           }
-          else if(incoming[0] == '6') {
-            string response = "7" + incoming.substr(1);
+          //If the incomine message is an acknowlegement of failure
+          else if(incoming[0] == ACK_FAIL) {
+            //Attack 7 for the final acknowledgement
+            string response = FIN_ACK + incoming.substr(1);
              string file_name = incoming.substr(1);
             *GRADING << "File: " << file_name << " end-to-end check failed" << endl;
+            //Print statement of failure
             cout << "File: " << file_name << " failed end-to-end check.\n" << endl;
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
@@ -299,16 +324,18 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
 
 }
 
+//Function takes in information about the file and returns a status code 
+//of 2 for success and 3 for failure
 int endCheck(string file_name, string file_hash, string directory) {
+    //Create sha1
     char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
     file_name = directory + "/" + file_name;
     const char *filename = file_name.c_str();
 
-	printf("filename: %s\n", filename);
+	//Check the given file against the given sha1
     sha1file(filename, sha1);
-	cout << "sha1: " << string(sha1) << endl;
-	cout << "file_hash: " << file_hash << endl;
 
+    //Return 2 if the files are the same and 3 if they are different
     if(string(sha1) == file_hash)
         return 2;
     else 
@@ -316,6 +343,7 @@ int endCheck(string file_name, string file_hash, string directory) {
 
 }
 
+//Function taken from the sha1 file given to us
 void sha1file(const char *filename, char *sha1) {
     ifstream *t;
     stringstream *buffer;
