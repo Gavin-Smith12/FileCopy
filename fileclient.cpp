@@ -194,7 +194,9 @@ main(int argc, char *argv[]) {
 			// Send the message REQ_CHK to the server
 			string server_response = sendMessageToServer(msgTxt, REQ_CHK, sock);
 
-            if(server_response[0] == CHK_SUCC) {
+			// TODO: Check for filename in messages
+			cout << "server_response[0]" << server_response[0] << endl;
+            if (server_response[0] == CHK_SUCC ) {
 				*GRADING << "File: " << sourceFile -> d_name << " end-to-end check succeeded, attempt " << 1 << endl;
 				server_response = sendMessageToServer(sourceFile -> d_name, ACK_SUCC, sock);
 			} else if (server_response[0] == CHK_FAIL) {
