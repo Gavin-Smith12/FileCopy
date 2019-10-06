@@ -91,8 +91,9 @@ void sha1file(const char *filename, char *sha1);
 #define REQ_CHK  '0'
 #define CHK_SUCC '2'
 #define CHK_FAIL '3'
-#define CHK_ACK  '5'
-#define ACK      '7'
+#define ACK_SUCC '5'
+#define ACK_FAIL '6'
+#define FIN_ACK  '7'
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -195,10 +196,15 @@ main(int argc, char *argv[]) {
 
             if(server_response[0] == CHK_SUCC) {
 				*GRADING << "File: " << sourceFile -> d_name << " end-to-end check succeeded, attempt " << 1 << endl;
+				server_response = sendMessageToServer(sourceFile -> d_name, ACK_SUCC, sock);
 			} else if (server_response[0] == CHK_FAIL) {
                 *GRADING << "File: " << sourceFile -> d_name << " end-to-end check failed, attempt " << 1 << endl;
+				server_response = sendMessageToServer(sourceFile -> d_name, ACK_FAIL, sock);
             }
-			sendMessageToServer(server_response.substr(1), CHK_ACK, sock);
+			if (server_response[0] == FIN_ACK) {
+				// End-to-end check complete
+				cout << "End-to-end check complete." << endl;
+			}
 		}
 		closedir(SRC);
 
