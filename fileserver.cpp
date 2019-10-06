@@ -56,6 +56,7 @@
 #include "c150grading.h"
 #include <fstream>
 #include <cstdlib>
+#include <stdio.h>
 #include <openssl/sha.h> 
 
 
@@ -166,14 +167,12 @@ main(int argc, char *argv[])
 
           if(incoming[0] == '0') {
             string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2));
-			cout << file_hash << endl;
             string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
+            *GRADING << "File: " << file_name.substr(file_name.length()-4) << " starting to receive file" << endl;
+            *GRADING << "File: " << file_name.substr(file_name.length()-4) << " received, beginning end-to-end check" << endl;
             int file_status = endCheck(file_name, file_hash, (string)directory);
 
-            if(file_status == 2)
-                file_name = file_name.substr(0, file_name.size()-4);
-
-            string response = to_string(file_status) + file_name;
+            string response = to_string(file_status) + incoming.substr((SHA_DIGEST_LENGTH * 2) + 1);
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
                     response.c_str());
@@ -182,6 +181,21 @@ main(int argc, char *argv[])
           } 
           else if(incoming[0] == '5') {
             string response = "7" + incoming.substr(1);
+            string file_name = incoming.substr(1);
+            *GRADING << "File: " << file_name << " end-to-end check succeeded" << endl;
+            cout << "File: " << file_name << " passed end-to-end check.\n" << endl;
+            if(!rename((file_name + ".tmp").c_str(), file_name.c_str()))
+                cerr << "Could not rename file\n" << endl;
+
+            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+                    response.c_str());
+            sock -> write(response.c_str(), response.length()+1);
+          }
+          else if(incoming[0] == '6') {
+            string response = "7" + incoming.substr(1);
+             string file_name = incoming.substr(1);
+            *GRADING << "File: " << file_name << " end-to-end check failed" << endl;
+            cout << "File: " << file_name << " failed end-to-end check.\n" << endl;
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
                     response.c_str());
