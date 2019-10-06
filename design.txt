@@ -1,0 +1,27 @@
+Gavin Smith and Ravi Serota
+COMP117 File Copy Design Document
+October 8, 2019
+
+The inital assumption our protocol makes is that it will only try to copy one
+file at a time to the server, and will not start to copy another file until
+the previous file has copied over correctly. 
+
+Our protocol works with two types of packets. There is an initial packet that 
+tells the server that a file is going to be copied. This packet will contain
+the full file name of the file that is being copied, the number of packets that 
+will be copied for the file, and a checksum of the previous two entries to
+ensure that this information is correct. After this initial packet is sent 
+and the server sends back a confirmation the rest of the packets will be of 
+the same type. This second packet contains a header that has the SHA1 of 
+the file name, the packet number of the current packet (as in which number
+packet it is in the sequence), a checksum of the entire packet including the
+header, and then the rest of the packet is the data from the file. Our packets
+are going to be 512 bytes large. Both types of packets will have the first byte
+or few bytes be a unique signifier to tell what type of packet it is. 
+
+In the scenario where a packet is received from the client that does not 
+match the checksum in the header of the packet, or if the server times out 
+waiting for a message from the client and has not received all of the packets
+yet, the server will send a message to the client that contains the number
+of packet that needs to be sent again. 
+
