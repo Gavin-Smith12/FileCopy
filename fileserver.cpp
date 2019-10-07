@@ -102,7 +102,7 @@ main(int argc, char *argv[])
      // Check command line and parse arguments
      //
      if (argc != 4)  {
-       fprintf(stderr,"Correct syntxt is: %s <nastiness_number>\n", argv[0]);
+       fprintf(stderr,"Correct syntxt is: %s <networknastiness> <filenastiness> <directory>\n", argv[0]);
           exit(1);
      }
      if (strspn(argv[1], "0123456789") != strlen(argv[1])) {
@@ -182,8 +182,8 @@ main(int argc, char *argv[])
             string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
 
             //Grading statements, will be changed once file copy is added
-            *GRADING << "File: " << file_name.substr(file_name.length()-4) << " starting to receive file" << endl;
-            *GRADING << "File: " << file_name.substr(file_name.length()-4) << " received, beginning end-to-end check" << endl;
+            *GRADING << "File: " << incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) << " starting to receive file" << endl;
+            *GRADING << "File: " << incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) << " received, beginning end-to-end check" << endl;
 
             //Calls the end to end check which reports 2 with success and 3 with failure
             int file_status = endCheck(file_name, file_hash, (string)directory);

@@ -125,21 +125,26 @@ main(int argc, char *argv[]) {
   
     GRADEME(argc, argv);
 
+     //
      // Variable declarations
+     //
      DIR *SRC;
      struct dirent *sourceFile;
 
+     //
      // Make sure command line looks right
+     //
      if (argc != 5) {
        fprintf(stderr,"Correct syntxt is: %s <server> <networknastiness> <filenastiness> <srcdir>\n", argv[0]);
           exit(1);
      }
 
+    //
+    //
     //        Send / receive / print 
+    //
     try {
-		//
         // Create the socket
-		//
         c150debug->printf(C150APPLICATION,"Creating C150DgmSocket");
         C150DgmSocket *sock = new C150DgmSocket();
         sock -> turnOnTimeouts(3000);
@@ -147,8 +152,13 @@ main(int argc, char *argv[]) {
         // Tell the DGMSocket which server to talk to
         sock -> setServerName(argv[serverArg]);  
 
-		// Check that directory supplied exists
+		/* size_t dirnamelen = strlen(argv[4]);
+		char *dirname = (char*) malloc(dirnamelen);
+		dirname = strncpy(dirname, argv[4], dirnamelen);
+		printf("dirname: %s\n", dirname); */
         checkDirectory(argv[4]);
+
+
 
 		//
 		// Open the source directory
@@ -172,44 +182,35 @@ main(int argc, char *argv[]) {
 				continue;          // never copy . or ..
 			} 
 			
-			//
 			// Get the SHA-1 of the file
-			//
 			char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
-			string filepath = dirname + string(sourceFile -> d_name);
+
+			string filepath = dirname + "/" + string(sourceFile -> d_name);
 			sha1file(filepath.c_str(), sha1);
 
 			// Concatenate strings to create message text to send
 			string msgTxt = string(sha1) + string(sourceFile -> d_name);
 
-			// Send the message REQ_CHK to the server, beginning the end-to-end protocol
+			// Send the message REQ_CHK to the server
 			string server_response = sendMessageToServer(msgTxt, REQ_CHK, sock);
 
-			//
-			// Parse server response for end2end protocol code and respond to server
-			//
 			// TODO: Check for filename in messages
 			cout << "server_response[0]" << server_response[0] << endl;
-            if (server_response[0] == CHK_SUCC) { // end2end succeeded
+            if (server_response[0] == CHK_SUCC ) {
 				*GRADING << "File: " << sourceFile -> d_name << " end-to-end check succeeded, attempt " << 1 << endl;
 				server_response = sendMessageToServer(sourceFile -> d_name, ACK_SUCC, sock);
-			} else if (server_response[0] == CHK_FAIL) { // end2end failed
+			} else if (server_response[0] == CHK_FAIL) {
                 *GRADING << "File: " << sourceFile -> d_name << " end-to-end check failed, attempt " << 1 << endl;
 				server_response = sendMessageToServer(sourceFile -> d_name, ACK_FAIL, sock);
             }
-			//
-			// Check for FIN_ACK, else exit
-			//
 			if (server_response[0] == FIN_ACK) {
 				// End-to-end check complete
 				cout << "End-to-end check complete." << endl;
-			} else {
-				// TODO: What should be done here?
-				exit(1);
 			}
 		}
-		// Close the open directory
 		closedir(SRC);
+
+
 	}
 
     //
@@ -364,49 +365,34 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
 
 string sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
 {
-	//
-	// Declare variables
-	//
     char incomingMsg[512];
     ssize_t readlen; 
     bool send_message_again = true;
 
-	//
-	// Loop until successful read on socket (no timeout)
-	//
     while(send_message_again == true) {
-		// Message is a message code prepended to the message text
         string msg = msgCode + msgTxt;
         cout << "string message: " << msg << endl;
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
-		// Write message to socket
         sock -> write(msg.c_str(), msg.size()+1); // +1 includes the null
-
-
-		//
-		// Write grading messages to grading log
-		//
 
 		// File: <name>, beginning transmission, attempt <attempt>
 		// TODO: FILENAME needs to be variable
-		*GRADING << "File: " << "FILENAME" " , beginning transmission, attempt " << 1 << endl;
+		*GRADING << "File: " << "FILENAME" ", beginning transmission, attempt " << 1 << endl;
 
 		// File: <name> transmission complete, waiting for end-to-end check, attempt <attempt>
 		// TODO: FILENAME needs to be variable
 		*GRADING << "File: " << "FILENAME" << " transmission complete, waiting for end-to-end check, attempt " << 1 << endl;
 
-		//
         // Read the response from the server
 		//
         c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
               "pingclient");
         readlen = sock -> read(incomingMsg, sizeof(incomingMsg));
 
-		//
-        // Keep sending messages if timedout, else check and print messsage
-		// 	and return incoming message string.
-		//
+		
+
+        // Iterate counter after timing out of a read
         if((sock -> timedout() == true)) {
             send_message_again = true;
         } else {
@@ -432,46 +418,29 @@ void checkDirectory(char *dirname) {
 }
 
 void sha1file(const char *filename, char *sha1) {
-
-	//
-	// Declare variables
-	//
     ifstream *t;
     stringstream *buffer;
 	unsigned char temp[SHA_DIGEST_LENGTH];
 	char ostr[(SHA_DIGEST_LENGTH * 2) + 1];
 
-	//
-	// Zero-initalize buffers
-	//
-	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1); // Human-readable SHA-1 digest
-	memset(temp, 0, SHA_DIGEST_LENGTH);	// Raw SHA-1 digest buffer
+	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1);
+	memset(temp, 0, SHA_DIGEST_LENGTH);
 
-	//
-	// Create file stream, read from stream, get SHA-1 digest
-	//
     t = new ifstream(filename);
     buffer = new stringstream;
     *buffer << t->rdbuf();
     SHA1((const unsigned char *)buffer->str().c_str(), 
             (buffer->str()).length(), temp);
 	
-	//
-	// Write the SHA-1 digest bytes in human-readable form to a string
 	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
-	//
 	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
         sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
     }
 
-	//
-	// Copy human-readable output string to function user-returned variable
-	//
 	memcpy(sha1, ostr, (SHA_DIGEST_LENGTH * 2) + 1);
 
-	//
-	// Free alloc'd memory
-	//
+	printf("filename: %s\n", filename);
+
     delete t;
     delete buffer;
 }
