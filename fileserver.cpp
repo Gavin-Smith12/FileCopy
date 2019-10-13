@@ -54,6 +54,8 @@
 #include "c150nastydgmsocket.h"
 #include "c150debug.h"
 #include "c150grading.h"
+#include "c150nastyfile.h"
+#include "fcpacket.h"
 #include <fstream>
 #include <cstdlib>
 #include <stdio.h>
@@ -65,6 +67,7 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 int endCheck(string file_name, string file_hash, string directory);
 void sha1file(const char *filename, char *sha1);
+int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory);
 
 #define REQ_CHK  '0'
 #define CHK_SUCC '2'
@@ -72,6 +75,7 @@ void sha1file(const char *filename, char *sha1);
 #define ACK_SUCC '5'
 #define ACK_FAIL '6'
 #define FIN_ACK  '7'
+#define FST_PCT  '8'
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -227,6 +231,17 @@ main(int argc, char *argv[])
                     response.c_str());
             sock -> write(response.c_str(), response.length()+1);
           }
+          else if(incoming[0] == FST_PCT) {
+            struct initialPacket pckt1;
+
+            //Set all variables of the initial packet
+            pckt1.packetType = FST_PCT;
+            pckt1.numPackets = stoi(incoming.substr(1, 32));
+            strcpy(pckt1.packetHash, incoming.substr(33, 40).c_str());
+            strcpy(pckt1.filename, incoming.substr(73).c_str());
+
+            copyfile(pckt1, sock, directory);
+          }
 	   }
      } 
 
@@ -369,3 +384,50 @@ void sha1file(const char *filename, char *sha1) {
     delete t;
     delete buffer;
 }
+
+int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory) {
+
+    C150NastyFile currentFile(0);
+    ssize_t readlen;             
+    char incomingMessage[512];
+    struct dataPacket filePacket[pckt1.numPackets];
+
+    for(int i = 0; i < pckt1.numPackets; i++) {
+        readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
+        if (readlen == 0) {
+            c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
+            continue;
+        }
+
+        //
+        // Clean up the message in case it contained junk
+        //
+        incomingMessage[readlen] = '\0'; // make sure null terminated
+        string incoming(incomingMessage); // Convert to C++ string ...it's slightly
+                                            // easier to work with, and cleanString
+                                            // expects it
+        cleanString(incoming);            // c150ids-supplied utility: changes
+                                            // non-printing characters to .
+        c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
+                    readlen, incoming.c_str());
+
+        //TODO fix where these values are in the message
+        filePacket[i].packetType = incoming[0];
+        filePacket[i].fileNameHash = incoming.substr(1, 20);
+        filePacket[i].packetNum = stoi(incoming.substr(21, 4));
+        strcpy(filePacket[i].data, incoming.substr(1, 5).c_str());
+        filePacket[i].dataSize = 0;
+        filePacket[i].packetHash = "0";
+
+        string currFileName = string(directory) + pckt1.filename;
+
+        if(currentFile.fopen(currFileName.c_str(), "a") == NULL)
+            perror("Could not open file\n");
+        if(!currentFile.fwrite(filePacket[i].data, (size_t) filePacket[i].dataSize, 1))
+            perror("Could not write to file\n");
+        currentFile.fclose();
+    }
+
+    return 0;
+}
+
