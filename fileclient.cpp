@@ -215,6 +215,11 @@ void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock) {
 
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock) {
 	int fsize, numDataPackets;
+	char *dataPktBytes, *initPktBytes;
+
+	initPktBytes = (char *) malloc(sizeof(struct initialPacket));
+	dataPktBytes = (char *) malloc(sizeof(struct dataPacket));
+
 	nastyFile.fseek(0, SEEK_END);
 	fsize = nastyFile.ftell();
 	if (fsize == 0) {
@@ -234,8 +239,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	memcpy(initPkt.checksum, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
 
 	// send inital packet
-	char *pkt  = (char *) &initPkt;
-	sendMessageToServer(pkt, sock);
+	memcpy(initPktBytes, &initPkt, sizeof(struct initialPacket));
+	sendMessageToServer(initPktBytes, sock);
 
 	// Create and send data packets
 	struct dataPacket dataPkt;
@@ -247,8 +252,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		nastyFile.fread(dataPkt.data, 1, MAX_DATA_SIZE);
 		dataPkt.dataSize = MAX_DATA_SIZE;
 		// send packet
-		pkt = (char *) &dataPkt;
-		sendMessageToServer(pkt, sock);
+		memcpy(dataPktBytes, &dataPkt, sizeof(struct initialPacket));
+		sendMessageToServer(dataPktBytes, sock);
 	}
 	// Create last data packet
 	memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
@@ -257,8 +262,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	nastyFile.fread(dataPkt.data, 1, fsize % MAX_DATA_SIZE);
 	dataPkt.dataSize = fsize % MAX_DATA_SIZE;
 	// Send packet
-	pkt = (char *) &dataPkt;
-	sendMessageToServer(pkt, sock);
+	memcpy(dataPktBytes, &dataPkt, sizeof(struct dataPacket));
+	sendMessageToServer(dataPktBytes, sock);
 }
 /*
 void clientEndToEnd() {
@@ -505,6 +510,8 @@ void checkDirectory(char *dirname) {
   }
 }
 
+
+// TODO: Use nastyfile interface
 void sha1file(const char *filename, char *sha1) {
 
 	//
