@@ -58,8 +58,8 @@
 //     
 // --------------------------------------------------------------
 
-
-#include "c150dgmsocket.h"
+#include "fcpacket.h"
+#include "c150nastydgmsocket.h"
 #include "c150debug.h"
 #include "c150grading.h"
 #include "c150nastyfile.h" 
@@ -83,8 +83,12 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void checkDirectory(char *dirname);
-string sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock);
+char *sendMessageToServer(const char *msg, C150DgmSocket *sock);
 void sha1file(const char *filename, char *sha1);
+void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock);
+void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock);
+// void sendreceiveprint()
+// void clientEndToEnd();
 
 
 // End-to-end protocol message codes 
@@ -94,6 +98,8 @@ void sha1file(const char *filename, char *sha1);
 #define ACK_SUCC '5'
 #define ACK_FAIL '6'
 #define FIN_ACK  '7'
+#define INIT_FCP '8'
+#define DATA_FCP '9'
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -127,7 +133,7 @@ main(int argc, char *argv[]) {
 
      // Variable declarations
      DIR *SRC;
-     struct dirent *sourceFile;
+     
 
      // Make sure command line looks right
      if (argc != 5) {
@@ -137,77 +143,29 @@ main(int argc, char *argv[]) {
 
     //        Send / receive / print 
     try {
-		//
-        // Create the socket
-		//
-        c150debug->printf(C150APPLICATION,"Creating C150DgmSocket");
-        C150DgmSocket *sock = new C150DgmSocket();
-        sock -> turnOnTimeouts(3000);
-
-        // Tell the DGMSocket which server to talk to
-        sock -> setServerName(argv[serverArg]);  
 
 		// Check that directory supplied exists
         checkDirectory(argv[4]);
 
+		string dirName = string(argv[4]);
+
+		int networkNasty = (int) strtol(argv[2], NULL, 10);
+		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
+			 networkNasty);
+        C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
+        c150debug->printf(C150APPLICATION,"Ready to accept messages");
 		//
 		// Open the source directory
 		//
 		SRC = opendir(argv[4]);
 		if (SRC == NULL) {
-			fprintf(stderr,"Error opening source directory %s\n", argv[2]);     
+			fprintf(stderr,"Error opening source directory %s\n", argv[4]);     
 			exit(8);
       	}
-      
-		//
-		//  Loop copying the files
-		//
-		//    copyfile takes name of target file
-		//
-		string dirname = string(argv[4]);
-		while ((sourceFile = readdir(SRC)) != NULL) {
-			// skip the . and .. names
-			if ((strcmp(sourceFile -> d_name, ".") == 0) ||
-				(strcmp(sourceFile -> d_name, "..") == 0 )) {
-				continue;          // never copy . or ..
-			} 
-			
-			//
-			// Get the SHA-1 of the file
-			//
-			char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
-			string filepath = dirname + string(sourceFile -> d_name);
-			sha1file(filepath.c_str(), sha1);
 
-			// Concatenate strings to create message text to send
-			string msgTxt = string(sha1) + string(sourceFile -> d_name);
-
-			// Send the message REQ_CHK to the server, beginning the end-to-end protocol
-			string server_response = sendMessageToServer(msgTxt, REQ_CHK, sock);
-
-			//
-			// Parse server response for end2end protocol code and respond to server
-			//
-			// TODO: Check for filename in messages
-			cout << "server_response[0]" << server_response[0] << endl;
-            if (server_response[0] == CHK_SUCC) { // end2end succeeded
-				*GRADING << "File: " << sourceFile -> d_name << " end-to-end check succeeded, attempt " << 1 << endl;
-				server_response = sendMessageToServer(sourceFile -> d_name, ACK_SUCC, sock);
-			} else if (server_response[0] == CHK_FAIL) { // end2end failed
-                *GRADING << "File: " << sourceFile -> d_name << " end-to-end check failed, attempt " << 1 << endl;
-				server_response = sendMessageToServer(sourceFile -> d_name, ACK_FAIL, sock);
-            }
-			//
-			// Check for FIN_ACK, else exit
-			//
-			if (server_response[0] == FIN_ACK) {
-				// End-to-end check complete
-				cout << "End-to-end check complete." << endl;
-			} else {
-				// TODO: What should be done here?
-				exit(1);
-			}
-		}
+		int fileNasty = (int) strtol(argv[1], NULL, 10);
+		// Loop through files in directory, sending each to the servers
+		loopFilesInDir(SRC, dirName, fileNasty, sock);
 		// Close the open directory
 		closedir(SRC);
 	}
@@ -226,6 +184,123 @@ main(int argc, char *argv[]) {
     return 0;
 }
 
+void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock) {
+
+	//  Loop copying the files
+	//
+	//    copyfile takes name of target file
+	//
+	struct dirent *sourceFile;
+	C150NastyFile nastyFile(nasty);
+	void *ret;
+	string filePath;
+
+	while ((sourceFile = readdir(SRC)) != NULL) {
+		// skip the . and .. names
+		if ((strcmp(sourceFile -> d_name, ".") == 0) ||
+			(strcmp(sourceFile -> d_name, "..") == 0 )) {
+			continue;          // never copy . or ..
+		}
+		filePath = dirName + string(sourceFile -> d_name);
+		cout << filePath << endl;
+		ret = nastyFile.fopen(filePath.c_str(), "r");
+		if (ret == NULL) {
+			perror("Cannot open file.");
+		} else {
+			readAndSendFile(nastyFile, sourceFile -> d_name, sock);
+			nastyFile.fclose();
+		}
+	}
+}
+
+void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock) {
+	int fsize, numDataPackets;
+	nastyFile.fseek(0, SEEK_END);
+	fsize = nastyFile.ftell();
+	if (fsize == 0) {
+		return; // File empty
+	}
+	if (fsize > MAX_DATA_SIZE) {
+		numDataPackets = (int) (fsize / MAX_DATA_SIZE);
+		if (fsize % MAX_DATA_SIZE != 0) {
+			numDataPackets += 1;
+		}
+	} else {
+		numDataPackets = 1;
+	}
+	struct initialPacket initPkt;
+	initPkt.numPackets = numDataPackets;
+	memcpy(initPkt.filename, filename, strlen(filename) + 1);
+	memcpy(initPkt.checksum, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
+
+	// send inital packet
+	char *pkt  = (char *) &initPkt;
+	sendMessageToServer(pkt, sock);
+
+	// Create and send data packets
+	struct dataPacket dataPkt;
+	int i;
+	for(i = 0; i < numDataPackets - 1; i++) {
+		memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
+		dataPkt.packetNum = i + 1;
+		memset(dataPkt.data, 1, MAX_DATA_SIZE);
+		nastyFile.fread(dataPkt.data, 1, MAX_DATA_SIZE);
+		dataPkt.dataSize = MAX_DATA_SIZE;
+		// send packet
+		pkt = (char *) &dataPkt;
+		sendMessageToServer(pkt, sock);
+	}
+	// Create last data packet
+	memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
+	dataPkt.packetNum = i + 1;
+	memset(dataPkt.data, 0, MAX_DATA_SIZE);
+	nastyFile.fread(dataPkt.data, 1, fsize % MAX_DATA_SIZE);
+	dataPkt.dataSize = fsize % MAX_DATA_SIZE;
+	// Send packet
+	pkt = (char *) &dataPkt;
+	sendMessageToServer(pkt, sock);
+}
+/*
+void clientEndToEnd() {
+	
+
+	//
+	// Get the SHA-1 of the file
+	//
+	char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
+	string filepath = dirname + string(sourceFile -> d_name);
+	sha1file(filepath.c_str(), sha1);
+
+	// Concatenate strings to create message text to send
+	string msgTxt = string(sha1) + string(sourceFile -> d_name);
+
+	// Send the message REQ_CHK to the server, beginning the end-to-end protocol
+	string server_response = sendMessageToServer(msgTxt, REQ_CHK, sock);
+
+	//
+	// Parse server response for end2end protocol code and respond to server
+	//
+	// TODO: Check for filename in messages
+	cout << "server_response[0]" << server_response[0] << endl;
+	if (server_response[0] == CHK_SUCC) { // end2end succeeded
+		*GRADING << "File: " << sourceFile -> d_name << " end-to-end check succeeded, attempt " << 1 << endl;
+		server_response = sendMessageToServer(sourceFile -> d_name, ACK_SUCC, sock);
+	} else if (server_response[0] == CHK_FAIL) { // end2end failed
+		*GRADING << "File: " << sourceFile -> d_name << " end-to-end check failed, attempt " << 1 << endl;
+		server_response = sendMessageToServer(sourceFile -> d_name, ACK_FAIL, sock);
+	}
+	//
+	// Check for FIN_ACK, else exit
+	//
+	if (server_response[0] == FIN_ACK) {
+		// End-to-end check complete
+		cout << "End-to-end check complete." << endl;
+	} else {
+		// TODO: What should be done here?
+		exit(1);
+	}
+}
+*/
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 //
@@ -362,26 +437,24 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
                   C150NETWORKDELIVERY); 
 }
 
-string sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
-{
+char *sendMessageToServer(const char *msg, C150DgmSocket *sock) {
 	//
 	// Declare variables
 	//
     char incomingMsg[512];
     ssize_t readlen; 
-    bool send_message_again = true;
+    bool sendMessageAgain = true;
 
 	//
 	// Loop until successful read on socket (no timeout)
 	//
-    while(send_message_again == true) {
+    while(sendMessageAgain == true) {
 		// Message is a message code prepended to the message text
-        string msg = msgCode + msgTxt;
         cout << "string message: " << msg << endl;
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
 		// Write message to socket
-        sock -> write(msg.c_str(), msg.size()+1); // +1 includes the null
+        sock -> write(msg, strlen(msg) + 1); // +1 includes the null
 
 
 		//
@@ -408,11 +481,12 @@ string sendMessageToServer(string msgTxt, char msgCode, C150DgmSocket *sock)
 		// 	and return incoming message string.
 		//
         if((sock -> timedout() == true)) {
-            send_message_again = true;
+            sendMessageAgain = true;
         } else {
-            send_message_again = false;
+            sendMessageAgain = false;
             checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
-            return string(incomingMsg);
+            // TODO: RETURN RECVD MESSAGE
+			return NULL;
         }
     }
     exit(1);
