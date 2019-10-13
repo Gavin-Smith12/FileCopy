@@ -235,10 +235,10 @@ main(int argc, char *argv[])
             struct initialPacket pckt1;
 
             //Set all variables of the initial packet
-            pckt1.packetType = FST_PCT;
-            pckt1.numPackets = stoi(incoming.substr(1, 32));
-            strcpy(pckt1.packetHash, incoming.substr(33, 40).c_str());
-            strcpy(pckt1.filename, incoming.substr(73).c_str());
+            pckt1.packet_type = FST_PCT;
+            strcpy(pckt1.checksum, incoming.substr(1, 40).c_str());
+            pckt1.numPackets = stoi(incoming.substr(41, 4));
+            strcpy(pckt1.filename, incoming.substr(45).c_str());
 
             copyfile(pckt1, sock, directory);
           }
@@ -411,15 +411,14 @@ int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory) {
         c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
                     readlen, incoming.c_str());
 
-        //TODO fix where these values are in the message
-        filePacket[i].packetType = incoming[0];
-        filePacket[i].fileNameHash = incoming.substr(1, 20);
-        filePacket[i].packetNum = stoi(incoming.substr(21, 4));
-        strcpy(filePacket[i].data, incoming.substr(1, 5).c_str());
-        filePacket[i].dataSize = 0;
-        filePacket[i].packetHash = "0";
+        filePacket[i].packet_type = incoming[0];
+        strcpy(filePacket[i].checksum, incoming.substr(1, 40).c_str());
+        strcpy(filePacket[i].fileNameHash, incoming.substr(41, 40).c_str());
+        filePacket[i].packetNum = stoi(incoming.substr(81, 4));
+        filePacket[i].dataSize = stoi(incoming.substr(510, 2));
+        strcpy(filePacket[i].data, incoming.substr(85, 425).c_str());
 
-        string currFileName = string(directory) + pckt1.filename;
+        string currFileName = string(directory) + pckt1.filename + ".tmp";
 
         if(currentFile.fopen(currFileName.c_str(), "a") == NULL)
             perror("Could not open file\n");
