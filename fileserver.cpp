@@ -419,7 +419,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     //printf("Length is: %x\n", pckt1->numPackets);
     //cout << "filename length is: " << pckt1->filename_length << endl;
     cout << "filename: " << pckt1->filename << endl;
-    struct dataPacket* filePacket[intPack];
+    struct dataPacket filePacket[intPack];
     cout << "3" << endl;
 
     for(int i = 0; i < intPack; i++) {
@@ -438,31 +438,36 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
         string incoming(incomingMessage); // Convert to C++ string ...it's slightly
                                             // easier to work with, and cleanString
                                             // expects it
+        //Have to have this before it is cleaned to preserve newlines
+        filePacket[i].data = incoming.substr(97).c_str();
         cleanString(incoming);            // c150ids-supplied utility: changes
                                             // non-printing characters to .
         c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
                     readlen, incoming.c_str());
 
-        filePacket[i] = (struct dataPacket*) incoming.c_str();
+        cout << "ERROR INCOMING: " << incoming << endl;
+        cout << "INCOMINGMESSAGE: " << incomingMessage << endl;
  
-        // filePacket[i].packet_type = incoming[0];
-        // cout << "ERROR 1" << endl;
-        // strcpy(filePacket[i].checksum, incoming.substr(1, 40).c_str());
-        // cout << "ERROR 2" << endl;
-        // strcpy(filePacket[i].fileNameHash, incoming.substr(41, 40).c_str());
-        // cout << "ERROR 3" << endl;
-        // filePacket[i].packetNum = stoi(incoming.substr(81, 4));
-        // cout << "ERROR 4" << endl;
-        // filePacket[i].dataSize = stoi(incoming.substr(510, 2));
-        // cout << "ERROR 5" << endl;
-        // strcpy(filePacket[i].data, incoming.substr(85, 425).c_str());
-        // cout << "ERROR 6" << endl;
+        cout << "ERROR 0" << endl;
+        filePacket[i].packet_type = incoming[0];
+        cout << "ERROR 1" << endl;
+        filePacket[i].checksum = incoming.substr(1, 40).c_str();
+        cout << "ERROR 2" << endl;
+        filePacket[i].fileNameHash = incoming.substr(41, 40).c_str();
+        cout << "ERROR 3" << endl;
+        filePacket[i].packetNum = stoi(incoming.substr(81, 16));
+        cout << "ERROR 4" << endl;
+    
 
-        string currFileName = string(directory) + pckt1->filename + ".tmp";
+        string currFileName = string(directory) + "/" + pckt1->filename + ".tmp";
 
         if(currentFile.fopen(currFileName.c_str(), "a") == NULL)
             perror("Could not open file\n");
-        if(!currentFile.fwrite(filePacket[i]->data, (size_t) filePacket[i]->dataSize, 1))
+
+        cout << "DATA IS : " << filePacket[i].data << endl;
+        cout << "DATA SIZE IS : " << filePacket[i].data.length() << endl;
+
+        if(!currentFile.fwrite((void*) filePacket[i].data.c_str(), (size_t) filePacket[i].data.length(), 1))
             perror("Could not write to file\n");
         currentFile.fclose();
     }
