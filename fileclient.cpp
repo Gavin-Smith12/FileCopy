@@ -83,7 +83,7 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void checkDirectory(char *dirname);
-char *sendMessageToServer(const char *msg, C150DgmSocket *sock);
+char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock);
 void sha1file(const char *filename, char *sha1);
 void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock);
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock);
@@ -241,7 +241,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 
 	// send inital packet
 	memcpy(initPktBytes, &initPkt, sizeof(struct initialPacket));
-	sendMessageToServer(initPktBytes, sock);
+	sendMessageToServer(initPktBytes, sizeof(struct initialPacket), sock);
 
 	// Create and send data packets
 	struct dataPacket dataPkt;
@@ -254,7 +254,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		dataPkt.dataSize = MAX_DATA_SIZE;
 		// send packet
 		memcpy(dataPktBytes, &dataPkt, sizeof(struct initialPacket));
-		sendMessageToServer(dataPktBytes, sock);
+		sendMessageToServer(dataPktBytes, sizeof(struct dataPacket), sock);
 	}
 	// Create last data packet
 	memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
@@ -264,7 +264,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	dataPkt.dataSize = fsize % MAX_DATA_SIZE;
 	// Send packet
 	memcpy(dataPktBytes, &dataPkt, sizeof(struct dataPacket));
-	sendMessageToServer(dataPktBytes, sock);
+	sendMessageToServer(dataPktBytes, sizeof(struct dataPacket), sock);
 }
 /*
 void clientEndToEnd() {
@@ -443,7 +443,7 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
                   C150NETWORKDELIVERY); 
 }
 
-char *sendMessageToServer(const char *msg, C150DgmSocket *sock) {
+char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) {
 	//
 	// Declare variables
 	//
@@ -461,7 +461,7 @@ char *sendMessageToServer(const char *msg, C150DgmSocket *sock) {
                       "fileclient", msg);
 
 		// Write message to socket
-        sock -> write(msg, strlen(msg)+1); // +1 includes the null
+        sock -> write(msg, msgSize); // +1 includes the null
 
 		//
 		// Write grading messages to grading log
