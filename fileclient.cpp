@@ -235,6 +235,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	} else {
 		numDataPackets = 1;
 	}
+	// Seek back to beginning for reading
+	nastyFile.rewind();
 	struct initialPacket initPkt;
 
 	// Convert int to char[]

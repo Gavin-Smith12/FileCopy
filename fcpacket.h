@@ -2,7 +2,7 @@
 #include <iostream>
 
 #define MAX_FILE_NAME 460
-#define MAX_DATA_SIZE 420
+#define MAX_DATA_SIZE 400
 
 struct initialPacket {
 	char packet_type = '8';               // 1
