@@ -67,7 +67,7 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 int endCheck(string file_name, string file_hash, string directory);
 void sha1file(const char *filename, char *sha1);
-int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory);
+int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory);
 
 #define REQ_CHK  '0'
 #define CHK_SUCC '2'
@@ -176,6 +176,9 @@ main(int argc, char *argv[])
               c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
     			    readlen, incoming.c_str());
 
+            cout << "INCOMING MESSAGE: " << incomingMessage << endl;
+            cout << "READLEN: " << readlen << endl;
+
           //If the incoming message is the initial check we have to start the 
           //end-to-end check
           if(incoming[0] == REQ_CHK) {
@@ -235,18 +238,24 @@ main(int argc, char *argv[])
             cout << "In the correct place" << endl;
             struct initialPacket pckt1;
             cout << "INCOMING IS: " << incoming << endl;
+            cout << "numPackets IS: " << incoming.length() << endl;
 
             //Set all variables of the initial packet
+            // struct initialPacket* pckt = (struct initialPacket*) incoming.c_str();
+            // cout << "incoming length: " << incoming.length() << endl;
+            // for(int i=0; i<(int)incoming.length(); ++i)
+            //     std::cout << std::hex << (int)incoming[i];
+            // cout << endl;
             pckt1.packet_type = FST_PCT;
-            cout << "ERROR 1a" << endl;
+            cout << "ERROR 1a " << pckt1.packet_type << endl;
             strcpy(pckt1.checksum, incoming.substr(1, 40).c_str());
-            cout << "ERROR 2a" << endl;
-            pckt1.numPackets = stoi(incoming.substr(41, 4));
-            cout << "ERROR 3a" << endl;
-            strcpy(pckt1.filename, incoming.substr(45).c_str());
-            cout << "ERROR 4a" << endl;
+            cout << "ERROR 2a " << pckt1.checksum << endl;
+            pckt1.numPackets = incoming.substr(41, 10).c_str();
+            //pckt1.numPackets = incoming.at(42);
+            //cout << "ERROR 3a " << pckt1.numPackets << endl;
+            strcpy(pckt1.filename, incoming.substr(51).c_str());
 
-            copyfile(pckt1, sock, directory);
+            copyfile(&pckt1, sock, directory);
           }
 	   }
      } 
@@ -391,16 +400,27 @@ void sha1file(const char *filename, char *sha1) {
     delete buffer;
 }
 
-int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory) {
+int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) {
 
     cout << "BEGINNING" << endl;
     C150NastyFile currentFile(0);
+    cout << "1" << endl;
     ssize_t readlen;             
     char incomingMessage[512];
-    struct dataPacket filePacket[pckt1.numPackets];
+    cout << "type is: " << pckt1->packet_type << endl; 
+    cout << "checksum is: " << std::dec << pckt1->checksum << endl;
+    cout << "checksum length is: " << strlen(pckt1->checksum) << endl;
+    //cout << "length is: " << pckt1->numPackets << endl;
+    //printf("Length is: %x\n", pckt1->numPackets);
+    //cout << "filename length is: " << pckt1->filename_length << endl;
+    cout << "filename: " << pckt1->filename << endl;
+    struct dataPacket* filePacket[10];
+    cout << "3" << endl;
 
-    for(int i = 0; i < pckt1.numPackets; i++) {
+    for(int i = 0; i < 10; i++) {
+        cout << "4" << endl;
         readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
+        cout << "5" << endl;
         if (readlen == 0) {
             c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
             continue;
@@ -418,24 +438,26 @@ int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory) {
         c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
                     readlen, incoming.c_str());
 
-        filePacket[i].packet_type = incoming[0];
-        cout << "ERROR 1" << endl;
-        strcpy(filePacket[i].checksum, incoming.substr(1, 40).c_str());
-        cout << "ERROR 2" << endl;
-        strcpy(filePacket[i].fileNameHash, incoming.substr(41, 40).c_str());
-        cout << "ERROR 3" << endl;
-        filePacket[i].packetNum = stoi(incoming.substr(81, 4));
-        cout << "ERROR 4" << endl;
-        filePacket[i].dataSize = stoi(incoming.substr(510, 2));
-        cout << "ERROR 5" << endl;
-        strcpy(filePacket[i].data, incoming.substr(85, 425).c_str());
-        cout << "ERROR 6" << endl;
+        filePacket[i] = (struct dataPacket*) incoming.c_str();
+ 
+        // filePacket[i].packet_type = incoming[0];
+        // cout << "ERROR 1" << endl;
+        // strcpy(filePacket[i].checksum, incoming.substr(1, 40).c_str());
+        // cout << "ERROR 2" << endl;
+        // strcpy(filePacket[i].fileNameHash, incoming.substr(41, 40).c_str());
+        // cout << "ERROR 3" << endl;
+        // filePacket[i].packetNum = stoi(incoming.substr(81, 4));
+        // cout << "ERROR 4" << endl;
+        // filePacket[i].dataSize = stoi(incoming.substr(510, 2));
+        // cout << "ERROR 5" << endl;
+        // strcpy(filePacket[i].data, incoming.substr(85, 425).c_str());
+        // cout << "ERROR 6" << endl;
 
-        string currFileName = string(directory) + pckt1.filename + ".tmp";
+        string currFileName = string(directory) + pckt1->filename + ".tmp";
 
         if(currentFile.fopen(currFileName.c_str(), "a") == NULL)
             perror("Could not open file\n");
-        if(!currentFile.fwrite(filePacket[i].data, (size_t) filePacket[i].dataSize, 1))
+        if(!currentFile.fwrite(filePacket[i]->data, (size_t) filePacket[i]->dataSize, 1))
             perror("Could not write to file\n");
         currentFile.fclose();
     }

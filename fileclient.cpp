@@ -216,9 +216,10 @@ void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock) {
 
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock) {
 	int fsize, numDataPackets;
-	char *dataPktBytes, *initPktBytes;
+	//char *dataPktBytes, *initPktBytes;
+    char *dataPktBytes;
 
-	initPktBytes = (char *) malloc(sizeof(struct initialPacket));
+	//initPktBytes = (char *) malloc(sizeof(struct initialPacket));
 	dataPktBytes = (char *) malloc(sizeof(struct dataPacket));
 
 	nastyFile.fseek(0, SEEK_END);
@@ -235,19 +236,37 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		numDataPackets = 1;
 	}
 	struct initialPacket initPkt;
-	initPkt.numPackets = numDataPackets;
-	memcpy(initPkt.filename, filename, strlen(filename) + 1);
-	memcpy(initPkt.checksum, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
+	initPkt.numPackets = to_string(numDataPackets);
+    //initPkt.filename_length = strlen(filename);
+    //cout << "Numdatapackets: " << initPkt.numPackets << endl;
+	//memcpy(initPkt.filename, filename, strlen(filename) + 1);
+    int k = 0;
+    while(filename[k] != '\0') {
+        initPkt.filename[k] = filename[k];
+        k++;
+    }
+    string newfilename = initPkt.filename;
+    cout << "FILENAME IS: " << initPkt.filename << endl;
+    cout << "AGAIN ITS: " << string(initPkt.filename) << endl;
+    string temp_checksum = "0000011111222223333344444555556666677777";
+    strcpy(initPkt.checksum, temp_checksum.c_str());
+	//memcpy(initPkt.checksum, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
+    //cout << "CHECKSUM LENGTH: " << strlen(initPkt.checksum) << endl;
 
 	// send inital packet
-	memcpy(initPktBytes, &initPkt, sizeof(struct initialPacket));
-	sendMessageToServer(initPktBytes, sizeof(struct initialPacket), sock);
+	// memcpy(initPktBytes, &initPkt, sizeof(struct initialPacket));
+ //    cout << "INITPKTBYTES: " << initPktBytes << endl;
+ //    cout << "SIZE: " << strlen(initPktBytes) << endl;
+    string first_message = initPkt.packet_type + temp_checksum + initPkt.numPackets + newfilename;
+    cout << "FIRST MESSAGE: " << first_message << endl;
+    cout << "MESSAGE LENGTH: " << first_message.length() << endl;
+	sendMessageToServer(first_message.c_str(), first_message.length(), sock);
 
 	// Create and send data packets
 	struct dataPacket dataPkt;
 	int i;
 	for(i = 0; i < numDataPackets - 1; i++) {
-		memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
+		memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
 		dataPkt.packetNum = i + 1;
 		memset(dataPkt.data, 1, MAX_DATA_SIZE);
 		nastyFile.fread(dataPkt.data, 1, MAX_DATA_SIZE);
@@ -257,7 +276,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		sendMessageToServer(dataPktBytes, sizeof(struct dataPacket), sock);
 	}
 	// Create last data packet
-	memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
+	memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
 	dataPkt.packetNum = i + 1;
 	memset(dataPkt.data, 0, MAX_DATA_SIZE);
 	nastyFile.fread(dataPkt.data, 1, fsize % MAX_DATA_SIZE);
@@ -456,7 +475,10 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 	//
     while(sendMessageAgain == true) {
 		// Message is a message code prepended to the message text
-        cout << "string message: " << msg << endl;
+
+        cout << "MESSAGE IS: " << msg << endl;
+        cout << "string message size: " << msgSize << endl;
+
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
 
