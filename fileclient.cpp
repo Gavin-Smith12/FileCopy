@@ -240,6 +240,11 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	// Convert int to char[]
 	// initPkt.numPackets = numDataPackets;
 	string numPacketsStr = to_string(numDataPackets);
+	if (numPacketsStr.length() > 16)
+		perror("Number of packets too large to store in 16 chars.");
+	while(numPacketsStr.length() < 16) {
+		numPacketsStr = "0" + numPacketsStr;
+	}
 
     //initPkt.filename_length = strlen(filename);
     //cout << "Numdatapackets: " << initPkt.numPackets << endl;

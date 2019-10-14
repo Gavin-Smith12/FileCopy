@@ -238,7 +238,7 @@ main(int argc, char *argv[])
             cout << "In the correct place" << endl;
             struct initialPacket pckt1;
             cout << "INCOMING IS: " << incoming << endl;
-            cout << "numPackets IS: " << incoming.length() << endl;
+            // cout << "numPackets IS: " << incoming.length() << endl;
 
             //Set all variables of the initial packet
             // struct initialPacket* pckt = (struct initialPacket*) incoming.c_str();
@@ -248,12 +248,12 @@ main(int argc, char *argv[])
             // cout << endl;
             pckt1.packet_type = FST_PCT;
             cout << "ERROR 1a " << pckt1.packet_type << endl;
-            strcpy(pckt1.checksum, incoming.substr(1, 40).c_str());
+            strncpy(pckt1.checksum, incoming.substr(1, 40).c_str(), 40);
             cout << "ERROR 2a " << pckt1.checksum << endl;
-            pckt1.numPackets = incoming.substr(41, 10).c_str();
+            strncpy(pckt1.numPackets, incoming.substr(41, 16).c_str(), 16);
             //pckt1.numPackets = incoming.at(42);
             //cout << "ERROR 3a " << pckt1.numPackets << endl;
-            strcpy(pckt1.filename, incoming.substr(51).c_str());
+            strncpy(pckt1.filename, incoming.substr(57).c_str(), MAX_FILE_NAME);
 
             copyfile(&pckt1, sock, directory);
           }
@@ -407,9 +407,11 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     cout << "1" << endl;
     ssize_t readlen;             
     char incomingMessage[512];
-    cout << "type is: " << pckt1->packet_type << endl; 
-    cout << "checksum is: " << std::dec << pckt1->checksum << endl;
-    cout << "checksum length is: " << strlen(pckt1->checksum) << endl;
+    cout << "type is: " << pckt1->packet_type << endl;
+	string checksum = string(pckt1->checksum) << endl;
+    cout << "checksum is: " << checksum << endl;
+    cout << "checksum length is: " << checksum.length() << endl;
+	cout << "num pkts is: " << pckt1->numPackets << endl;
     //cout << "length is: " << pckt1->numPackets << endl;
     //printf("Length is: %x\n", pckt1->numPackets);
     //cout << "filename length is: " << pckt1->filename_length << endl;
@@ -464,4 +466,3 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 
     return 0;
 }
-
