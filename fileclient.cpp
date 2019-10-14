@@ -149,11 +149,12 @@ main(int argc, char *argv[]) {
 
 		string dirName = string(argv[4]);
 
-		int networkNasty = (int) strtol(argv[2], NULL, 10);
+		int networkNasty = atoi(argv[2]);
 		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 networkNasty);
         C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
         c150debug->printf(C150APPLICATION,"Ready to accept messages");
+        sock -> setServerName(argv[1]); 
 		//
 		// Open the source directory
 		//
@@ -163,7 +164,7 @@ main(int argc, char *argv[]) {
 			exit(8);
       	}
 
-		int fileNasty = (int) strtol(argv[1], NULL, 10);
+		int fileNasty = atoi(argv[3]);
 		// Loop through files in directory, sending each to the servers
 		loopFilesInDir(SRC, dirName, fileNasty, sock);
 		// Close the open directory
@@ -236,7 +237,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	struct initialPacket initPkt;
 	initPkt.numPackets = numDataPackets;
 	memcpy(initPkt.filename, filename, strlen(filename) + 1);
-	memcpy(initPkt.checksum, "0000011111222223333344444555556666677777888888", SHA_DIGEST_LENGTH * 2);
+	memcpy(initPkt.checksum, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
 
 	// send inital packet
 	memcpy(initPktBytes, &initPkt, sizeof(struct initialPacket));
@@ -458,9 +459,9 @@ char *sendMessageToServer(const char *msg, C150DgmSocket *sock) {
         cout << "string message: " << msg << endl;
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
-		// Write message to socket
-        sock -> write(msg, strlen(msg) + 1); // +1 includes the null
 
+		// Write message to socket
+        sock -> write(msg, strlen(msg)+1); // +1 includes the null
 
 		//
 		// Write grading messages to grading log

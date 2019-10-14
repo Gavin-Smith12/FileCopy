@@ -106,7 +106,7 @@ main(int argc, char *argv[])
      // Check command line and parse arguments
      //
      if (argc != 4)  {
-       fprintf(stderr,"Correct syntxt is: %s <nastiness_number>\n", argv[0]);
+       fprintf(stderr,"Correct syntxt is: %s <networknastiness> <filenastiness> <targetdir>\n", argv[0]);
           exit(1);
      }
      if (strspn(argv[1], "0123456789") != strlen(argv[1])) {
@@ -146,7 +146,7 @@ main(int argc, char *argv[])
 
        c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 nastiness);
-       C150DgmSocket *sock = new C150NastyDgmSocket(nastiness);
+       C150NastyDgmSocket *sock = new C150NastyDgmSocket(nastiness);
        c150debug->printf(C150APPLICATION,"Ready to accept messages");
 
        //
@@ -232,13 +232,19 @@ main(int argc, char *argv[])
             sock -> write(response.c_str(), response.length()+1);
           }
           else if(incoming[0] == FST_PCT) {
+            cout << "In the correct place" << endl;
             struct initialPacket pckt1;
+            cout << "INCOMING IS: " << incoming << endl;
 
             //Set all variables of the initial packet
             pckt1.packet_type = FST_PCT;
+            cout << "ERROR 1a" << endl;
             strcpy(pckt1.checksum, incoming.substr(1, 40).c_str());
+            cout << "ERROR 2a" << endl;
             pckt1.numPackets = stoi(incoming.substr(41, 4));
+            cout << "ERROR 3a" << endl;
             strcpy(pckt1.filename, incoming.substr(45).c_str());
+            cout << "ERROR 4a" << endl;
 
             copyfile(pckt1, sock, directory);
           }
@@ -387,6 +393,7 @@ void sha1file(const char *filename, char *sha1) {
 
 int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory) {
 
+    cout << "BEGINNING" << endl;
     C150NastyFile currentFile(0);
     ssize_t readlen;             
     char incomingMessage[512];
@@ -412,11 +419,17 @@ int copyfile(struct initialPacket pckt1, C150DgmSocket *sock, char* directory) {
                     readlen, incoming.c_str());
 
         filePacket[i].packet_type = incoming[0];
+        cout << "ERROR 1" << endl;
         strcpy(filePacket[i].checksum, incoming.substr(1, 40).c_str());
+        cout << "ERROR 2" << endl;
         strcpy(filePacket[i].fileNameHash, incoming.substr(41, 40).c_str());
+        cout << "ERROR 3" << endl;
         filePacket[i].packetNum = stoi(incoming.substr(81, 4));
+        cout << "ERROR 4" << endl;
         filePacket[i].dataSize = stoi(incoming.substr(510, 2));
+        cout << "ERROR 5" << endl;
         strcpy(filePacket[i].data, incoming.substr(85, 425).c_str());
+        cout << "ERROR 6" << endl;
 
         string currFileName = string(directory) + pckt1.filename + ".tmp";
 
