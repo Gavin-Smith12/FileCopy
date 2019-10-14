@@ -217,10 +217,10 @@ void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock) {
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock) {
 	int fsize, numDataPackets;
 	//char *dataPktBytes, *initPktBytes;
-    char *dataPktBytes;
+    //char *dataPktBytes;
 
 	//initPktBytes = (char *) malloc(sizeof(struct initialPacket));
-	dataPktBytes = (char *) malloc(sizeof(struct dataPacket));
+	// dataPktBytes = (char *) malloc(sizeof(struct dataPacket));
 
 	nastyFile.fseek(0, SEEK_END);
 	fsize = nastyFile.ftell();
@@ -255,48 +255,63 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
         k++;
     }
 
-    cout << "FILENAME IS: " << initPkt.filename << endl;
-    cout << "AGAIN ITS: " << string(initPkt.filename) << endl;
     string temp_checksum = "0000011111222223333344444555556666677777";
     strncpy(initPkt.checksum, temp_checksum.c_str(), 40);
 	//memcpy(initPkt.checksum, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
-    //cout << "CHECKSUM LENGTH: " << strlen(initPkt.checksum) << endl;
 
-	// send inital packet
-	// memcpy(initPktBytes, &initPkt, sizeof(struct initialPacket));
- //    cout << "INITPKTBYTES: " << initPktBytes << endl;
- //    cout << "SIZE: " << strlen(initPktBytes) << endl;
     string first_message = initPkt.packet_type + temp_checksum + numPacketsStr + string(filename);
     cout << "FIRST MESSAGE: " << first_message << endl;
     cout << "MESSAGE LENGTH: " << first_message.length() << endl;
 	sendMessageToServer(first_message.c_str(), first_message.length(), sock);
 
-    cout << "here?" << endl;
-
-
 	// Create and send data packets
+	string data_message;
 	struct dataPacket dataPkt;
 	int i;
+	char * databuf = (char *) malloc(MAX_DATA_SIZE);
+	memset(databuf, 0, MAX_DATA_SIZE);
 	for(i = 0; i < numDataPackets - 1; i++) {
-		memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
-		dataPkt.packetNum = i + 1;
-		memset(dataPkt.data, 1, MAX_DATA_SIZE);
-		nastyFile.fread(dataPkt.data, 1, MAX_DATA_SIZE);
-		dataPkt.dataSize = MAX_DATA_SIZE;
+		dataPkt.checksum     = "0000011111222223333344444555556666677777";
+		dataPkt.fileNameHash = "0000011111222223333344444555556666677777";
+		dataPkt.packetNum = to_string(i + 1);
+		if (dataPkt.packetNum.length() > 16)
+			perror("Number of packets too large to store in 16 chars.");
+		while(dataPkt.packetNum.length() < 16) {
+			dataPkt.packetNum = "0" + dataPkt.packetNum;
+		}	
+	
+		int res = nastyFile.fread(databuf, 1, MAX_DATA_SIZE);
+		cout << res << endl;
+
+		cout << databuf << endl;
+		dataPkt.data     = string(databuf);
+		cout << dataPkt.data.length() << endl;
+
 		// send packet
-		memcpy(dataPktBytes, &dataPkt, sizeof(struct initialPacket));
-		sendMessageToServer(dataPktBytes, sizeof(struct dataPacket), sock);
+		data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
+						+ dataPkt.packetNum + dataPkt.data;
+		sendMessageToServer(data_message.c_str(), data_message.length(), sock);
 	}
 	// Create last data packet
-	memcpy(dataPkt.fileNameHash, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
-	dataPkt.packetNum = i + 1;
-	memset(dataPkt.data, 0, MAX_DATA_SIZE);
-	nastyFile.fread(dataPkt.data, 1, fsize % MAX_DATA_SIZE);
-	dataPkt.dataSize = fsize % MAX_DATA_SIZE;
-	// Send packet
-	memcpy(dataPktBytes, &dataPkt, sizeof(struct dataPacket));
-	sendMessageToServer(dataPktBytes, sizeof(struct dataPacket), sock);
+	dataPkt.checksum     = "0000011111222223333344444555556666677777";
+	dataPkt.fileNameHash = "0000011111222223333344444555556666677777";
+	dataPkt.packetNum = to_string(i + 1);
+	if (dataPkt.packetNum.length() > 16)
+		perror("Number of packets too large to store in 16 chars.");
+	while(dataPkt.packetNum.length() < 16) {
+		dataPkt.packetNum = "0" + dataPkt.packetNum;
+	}
+
+	memset(databuf, 0, MAX_DATA_SIZE);
+	nastyFile.fread(databuf, 1, fsize % MAX_DATA_SIZE);
+	dataPkt.data = string(databuf);
+
+	// send packet
+	data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
+					+ dataPkt.packetNum + dataPkt.data;
+	sendMessageToServer(data_message.c_str(), data_message.length(), sock);
 }
+
 /*
 void clientEndToEnd() {
 	
