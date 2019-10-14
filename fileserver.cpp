@@ -251,6 +251,7 @@ main(int argc, char *argv[])
             strncpy(pckt1.checksum, incoming.substr(1, 40).c_str(), 40);
             cout << "ERROR 2a " << pckt1.checksum << endl;
             strncpy(pckt1.numPackets, incoming.substr(41, 16).c_str(), 16);
+            //
             cout << "NUMPACKETS: " << stoi(incoming.substr(41,16)) << endl;
             //pckt1.numPackets = incoming.at(42);
             //cout << "ERROR 3a " << pckt1.numPackets << endl;
