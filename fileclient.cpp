@@ -236,7 +236,11 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		numDataPackets = 1;
 	}
 	struct initialPacket initPkt;
-	initPkt.numPackets = to_string(numDataPackets);
+
+	// Convert int to char[]
+	// initPkt.numPackets = numDataPackets;
+	string numPacketsStr = to_string(numDataPackets);
+
     //initPkt.filename_length = strlen(filename);
     //cout << "Numdatapackets: " << initPkt.numPackets << endl;
 	//memcpy(initPkt.filename, filename, strlen(filename) + 1);
@@ -245,11 +249,11 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
         initPkt.filename[k] = filename[k];
         k++;
     }
-    string newfilename = initPkt.filename;
+
     cout << "FILENAME IS: " << initPkt.filename << endl;
     cout << "AGAIN ITS: " << string(initPkt.filename) << endl;
     string temp_checksum = "0000011111222223333344444555556666677777";
-    strcpy(initPkt.checksum, temp_checksum.c_str());
+    strncpy(initPkt.checksum, temp_checksum.c_str(), 40);
 	//memcpy(initPkt.checksum, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
     //cout << "CHECKSUM LENGTH: " << strlen(initPkt.checksum) << endl;
 
@@ -257,10 +261,13 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	// memcpy(initPktBytes, &initPkt, sizeof(struct initialPacket));
  //    cout << "INITPKTBYTES: " << initPktBytes << endl;
  //    cout << "SIZE: " << strlen(initPktBytes) << endl;
-    string first_message = initPkt.packet_type + temp_checksum + initPkt.numPackets + newfilename;
+    string first_message = initPkt.packet_type + temp_checksum + numPacketsStr + string(filename);
     cout << "FIRST MESSAGE: " << first_message << endl;
     cout << "MESSAGE LENGTH: " << first_message.length() << endl;
 	sendMessageToServer(first_message.c_str(), first_message.length(), sock);
+
+
+
 
 	// Create and send data packets
 	struct dataPacket dataPkt;
