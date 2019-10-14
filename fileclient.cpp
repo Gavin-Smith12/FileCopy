@@ -271,7 +271,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
     cout << "MESSAGE LENGTH: " << first_message.length() << endl;
 	sendMessageToServer(first_message.c_str(), first_message.length(), sock);
 
-
+    cout << "here?" << endl;
 
 
 	// Create and send data packets
@@ -478,14 +478,14 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 	//
 	// Declare variables
 	//
-    char incomingMsg[512];
-    ssize_t readlen; 
-    bool sendMessageAgain = true;
+    //char incomingMsg[512];
+    //ssize_t readlen; 
+    //bool sendMessageAgain = true;
 
 	//
 	// Loop until successful read on socket (no timeout)
 	//
-    while(sendMessageAgain == true) {
+    //while(sendMessageAgain == true) {
 		// Message is a message code prepended to the message text
 
         cout << "MESSAGE IS: " << msg << endl;
@@ -512,24 +512,24 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 		//
         // Read the response from the server
 		//
-        c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
-              "pingclient");
-        readlen = sock -> read(incomingMsg, sizeof(incomingMsg));
+  //       c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
+  //             "pingclient");
+  //       readlen = sock -> read(incomingMsg, sizeof(incomingMsg));
 
-		//
-        // Keep sending messages if timedout, else check and print messsage
-		// 	and return incoming message string.
-		//
-        if((sock -> timedout() == true)) {
-            sendMessageAgain = true;
-        } else {
-            sendMessageAgain = false;
-            checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
-            // TODO: RETURN RECVD MESSAGE
-			return NULL;
-        }
-    }
-    exit(1);
+		// //
+  //       // Keep sending messages if timedout, else check and print messsage
+		// // 	and return incoming message string.
+		// //
+  //       if((sock -> timedout() == true)) {
+  //           sendMessageAgain = true;
+  //       } else {
+  //           sendMessageAgain = false;
+  //           checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
+  //           // TODO: RETURN RECVD MESSAGE
+		// 	return NULL;
+  //       }
+  //   }
+    return NULL;
 }
 
 void checkDirectory(char *dirname) {

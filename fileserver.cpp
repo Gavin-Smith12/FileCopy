@@ -251,6 +251,7 @@ main(int argc, char *argv[])
             strncpy(pckt1.checksum, incoming.substr(1, 40).c_str(), 40);
             cout << "ERROR 2a " << pckt1.checksum << endl;
             strncpy(pckt1.numPackets, incoming.substr(41, 16).c_str(), 16);
+            cout << "NUMPACKETS: " << stoi(incoming.substr(41,16)) << endl;
             //pckt1.numPackets = incoming.at(42);
             //cout << "ERROR 3a " << pckt1.numPackets << endl;
             strncpy(pckt1.filename, incoming.substr(57).c_str(), MAX_FILE_NAME);
@@ -408,18 +409,19 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     ssize_t readlen;             
     char incomingMessage[512];
     cout << "type is: " << pckt1->packet_type << endl;
-	string checksum = string(pckt1->checksum) << endl;
+	string checksum = string(pckt1->checksum);
     cout << "checksum is: " << checksum << endl;
     cout << "checksum length is: " << checksum.length() << endl;
-	cout << "num pkts is: " << pckt1->numPackets << endl;
+	cout << "num pkts is: " << stoi(pckt1->numPackets) << endl;
+    int intPack = stoi(pckt1->numPackets);
     //cout << "length is: " << pckt1->numPackets << endl;
     //printf("Length is: %x\n", pckt1->numPackets);
     //cout << "filename length is: " << pckt1->filename_length << endl;
     cout << "filename: " << pckt1->filename << endl;
-    struct dataPacket* filePacket[10];
+    struct dataPacket* filePacket[intPack];
     cout << "3" << endl;
 
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < intPack; i++) {
         cout << "4" << endl;
         readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
         cout << "5" << endl;
