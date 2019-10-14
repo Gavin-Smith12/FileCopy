@@ -176,8 +176,7 @@ main(int argc, char *argv[])
               c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
     			    readlen, incoming.c_str());
 
-            cout << "INCOMING MESSAGE: " << incomingMessage << endl;
-            cout << "READLEN: " << readlen << endl;
+            //cout << "INCOMING MESSAGE: " << incomingMessage << endl;
 
           //If the incoming message is the initial check we have to start the 
           //end-to-end check
@@ -439,7 +438,14 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                                             // easier to work with, and cleanString
                                             // expects it
         //Have to have this before it is cleaned to preserve newlines
-        filePacket[i].data = incoming.substr(97).c_str();
+        cout << "MESSAGE CODE: " << incoming[0] << endl;
+         if(incoming[0] != '9') {
+             cout << "```````````````````````````````````````````````````````````````````````````````````````````````````````````` "<< endl;
+             return 0;
+         }
+        cout << "LENGTHLENGTHLENGTH: " << incoming.length() << endl;
+        if(incoming.length() > 97)
+            filePacket[i].data = incoming.substr(97).c_str();
         cleanString(incoming);            // c150ids-supplied utility: changes
                                             // non-printing characters to .
         c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
