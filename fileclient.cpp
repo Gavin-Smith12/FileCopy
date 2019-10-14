@@ -85,10 +85,11 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void checkDirectory(char *dirname);
 char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock);
 void sha1file(const char *filename, char *sha1);
-void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock);
+void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock);
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock);
 // void sendreceiveprint()
 // void clientEndToEnd();
+
 
 
 // End-to-end protocol message codes 
@@ -115,6 +116,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 const int serverArg = 1;     // server name is 1st arg
 //const int msgArg = 2;        // message text is 2nd arg
 
+int fileNasty    = 0;
+int networkNasty = 0;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 //
@@ -149,7 +152,7 @@ main(int argc, char *argv[]) {
 
 		string dirName = string(argv[4]);
 
-		int networkNasty = atoi(argv[2]);
+		networkNasty = atoi(argv[2]);
 		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 networkNasty);
         C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
@@ -164,9 +167,9 @@ main(int argc, char *argv[]) {
 			exit(8);
       	}
 
-		int fileNasty = atoi(argv[3]);
+		fileNasty = atoi(argv[3]);
 		// Loop through files in directory, sending each to the servers
-		loopFilesInDir(SRC, dirName, fileNasty, sock);
+		loopFilesInDir(SRC, dirName, sock);
 		// Close the open directory
 		closedir(SRC);
 	}
@@ -185,14 +188,14 @@ main(int argc, char *argv[]) {
     return 0;
 }
 
-void loopFilesInDir(DIR *SRC, string dirName, int nasty, C150DgmSocket *sock) {
+void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock) {
 
 	//  Loop copying the files
 	//
 	//    copyfile takes name of target file
 	//
 	struct dirent *sourceFile;
-	C150NastyFile nastyFile(nasty);
+	C150NastyFile nastyFile(fileNasty); // Global variable fileNasty
 	void *ret;
 	string filePath;
 
@@ -227,9 +230,9 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	if (fsize == 0) {
 		return; // File empty
 	}
-	if (fsize > MAX_DATA_SIZE) {
-		numDataPackets = (int) (fsize / MAX_DATA_SIZE);
-		if (fsize % MAX_DATA_SIZE != 0) {
+	if (fsize > MAX_DATA_SIZE - 1) {
+		numDataPackets = (int) (fsize / MAX_DATA_SIZE - 1);
+		if (fsize % (MAX_DATA_SIZE - 1) != 0) {
 			numDataPackets += 1;
 		}
 	} else {
@@ -239,8 +242,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	nastyFile.rewind();
 	struct initialPacket initPkt;
 
-	// Convert int to char[]
-	// initPkt.numPackets = numDataPackets;
+
+
 	string numPacketsStr = to_string(numDataPackets);
 	if (numPacketsStr.length() > 16)
 		perror("Number of packets too large to store in 16 chars.");
@@ -248,22 +251,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		numPacketsStr = "0" + numPacketsStr;
 	}
 
-    //initPkt.filename_length = strlen(filename);
-    //cout << "Numdatapackets: " << initPkt.numPackets << endl;
-	//memcpy(initPkt.filename, filename, strlen(filename) + 1);
-    int k = 0;
-    while(filename[k] != '\0') {
-        initPkt.filename[k] = filename[k];
-        k++;
-    }
-
     string temp_checksum = "0000011111222223333344444555556666677777";
-    strncpy(initPkt.checksum, temp_checksum.c_str(), 40);
-	//memcpy(initPkt.checksum, "0000011111222223333344444555556666677777", SHA_DIGEST_LENGTH * 2);
-
     string first_message = initPkt.packet_type + temp_checksum + numPacketsStr + string(filename);
-    cout << "FIRST MESSAGE: " << first_message << endl;
-    cout << "MESSAGE LENGTH: " << first_message.length() << endl;
 	sendMessageToServer(first_message.c_str(), first_message.length(), sock);
 
 	// Create and send data packets
@@ -271,7 +260,6 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	struct dataPacket dataPkt;
 	int i;
 	char * databuf = (char *) malloc(MAX_DATA_SIZE);
-	memset(databuf, 0, MAX_DATA_SIZE);
 	for(i = 0; i < numDataPackets - 1; i++) {
 		dataPkt.checksum     = "0000011111222223333344444555556666677777";
 		dataPkt.fileNameHash = "0000011111222223333344444555556666677777";
@@ -281,8 +269,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		while(dataPkt.packetNum.length() < 16) {
 			dataPkt.packetNum = "0" + dataPkt.packetNum;
 		}	
-	
-		int res = nastyFile.fread(databuf, 1, MAX_DATA_SIZE);
+		memset(databuf, 0, MAX_DATA_SIZE);
+		int res = nastyFile.fread(databuf, 1, MAX_DATA_SIZE - 1);
 		cout << res << endl;
 
 		cout << databuf << endl;
@@ -303,9 +291,9 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	while(dataPkt.packetNum.length() < 16) {
 		dataPkt.packetNum = "0" + dataPkt.packetNum;
 	}
-
+	// TODO: account for last packet being MAX_DATA_SIZE
 	memset(databuf, 0, MAX_DATA_SIZE);
-	nastyFile.fread(databuf, 1, fsize % MAX_DATA_SIZE);
+	nastyFile.fread(databuf, 1, fsize % (MAX_DATA_SIZE - 1));
 	dataPkt.data = string(databuf);
 
 	// send packet
@@ -563,14 +551,15 @@ void checkDirectory(char *dirname) {
 }
 
 
-// TODO: Use nastyfile interface
 void sha1file(const char *filename, char *sha1) {
 
 	//
 	// Declare variables
 	//
-    ifstream *t;
-    stringstream *buffer;
+    // ifstream *t;
+    // stringstream *buffer;
+	unsigned char * buffer;
+	C150NastyFile nastyFile(fileNasty);
 	unsigned char temp[SHA_DIGEST_LENGTH];
 	char ostr[(SHA_DIGEST_LENGTH * 2) + 1];
 
@@ -581,13 +570,20 @@ void sha1file(const char *filename, char *sha1) {
 	memset(temp, 0, SHA_DIGEST_LENGTH);	// Raw SHA-1 digest buffer
 
 	//
-	// Create file stream, read from stream, get SHA-1 digest
+	// Open file, read from file, get SHA-1 digest
 	//
-    t = new ifstream(filename);
-    buffer = new stringstream;
-    *buffer << t->rdbuf();
-    SHA1((const unsigned char *)buffer->str().c_str(), 
-            (buffer->str()).length(), temp);
+	void *ret = nastyFile.fopen(filename, "r");
+	if (ret == NULL) {
+		perror("Cannot open file.");
+		exit(1);
+	}
+	int fsize = 0;
+	nastyFile.fseek(0, SEEK_END);
+	fsize = nastyFile.ftell();
+	buffer = (unsigned char *) malloc(fsize);
+	nastyFile.fread(buffer, 1, fsize);
+
+    SHA1(buffer, fsize, temp);
 	
 	//
 	// Write the SHA-1 digest bytes in human-readable form to a string
@@ -605,6 +601,34 @@ void sha1file(const char *filename, char *sha1) {
 	//
 	// Free alloc'd memory
 	//
-    delete t;
-    delete buffer;
+	free(buffer);
+}
+
+void sha1string(const char *input, char *sha1) {
+	//
+	// Declare variables
+	//
+	unsigned char temp[SHA_DIGEST_LENGTH];
+	char ostr[(SHA_DIGEST_LENGTH * 2) + 1];
+
+	//
+	// Zero-initalize buffers
+	//
+	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1); // Human-readable SHA-1 digest
+	memset(temp, 0, SHA_DIGEST_LENGTH);	// Raw SHA-1 digest buffer
+
+    SHA1((const unsigned char *) input, strlen(input), temp);
+	
+	//
+	// Write the SHA-1 digest bytes in human-readable form to a string
+	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
+	//
+	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
+    }
+
+	//
+	// Copy human-readable output string to function user-returned variable
+	//
+	memcpy(sha1, ostr, (SHA_DIGEST_LENGTH * 2) + 1);
 }
