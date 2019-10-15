@@ -158,7 +158,7 @@ main(int argc, char *argv[]) {
 		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 networkNasty);
         C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
-        //sock -> turnOnTimeouts(3000);
+        sock -> turnOnTimeouts(2000);
         c150debug->printf(C150APPLICATION,"Ready to accept messages");
         sock -> setServerName(argv[1]); 
 		//
@@ -328,40 +328,81 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		//cout << data_message << endl;
 		
 		char *incomingp;
+        //cout << data_message << endl;
+        if(i%100 == 0) {
+            sleep(1);
+        }
 		if ((incomingp = sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested)) != NULL) {
 			incoming = string(incomingp);
 		}
+    }
 
-		//
-		// Parse incoming
-		//
-		if (incoming[0] == '!') {
-			// All packets for this file succesfully received
-			// Commence end2end check
-			//clientEndToEnd()
-			cout << "END2END" << endl;
-		} else if (incoming[0] == '@') {
-			do {
-				// Packet(s) requested by server
-				int requestedPacketNum   = stoi(incoming.substr(1,16));
-				string requestedFileName = incoming.substr(16,40);
-				// Resend requested packet
-				data_message = dataPackets[requestedPacketNum - 1];
+    char incomingMessage[512];
+    int readlen = 0;
+
+    while(1) {
+        readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
+        if(sock ->timedout() == true)
+            break;
+        incomingMessage[readlen] = '\0'; // make sure null terminated
+        string incoming(incomingMessage);
+        if (incoming[0] == '!') {
+         // All packets for this file succesfully received
+         // Commence end2end check
+         //clientEndToEnd()
+            cout << "END2END" << endl;
+        } else if (incoming[0] == '@') {
+            do {
+             // Packet(s) requested by server
+             int requestedPacketNum   = stoi(incoming.substr(1,16));
+             string requestedFileName = incoming.substr(16,40);
+             // Resend requested packet
+             data_message = dataPackets[requestedPacketNum - 1];
 
                 //cout << "requested packet: " << requestedPacketNum-1 << endl;
                 //cout << "data message is " << data_message << endl;
 
-				assert(readRequested == true);
-				incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
+             assert(readRequested == true);
+             incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
                 //cout << "incoming is: " << incoming << endl;
-				if (incoming[0] == '!')
-					cout << "END2END" << endl;
-					//clientEndToEnd();
-			} while (incoming[0] == '@');
-		} else {
-			cout << "Extraneous packet received." << endl;
-		}
-	}
+             if (incoming[0] == '!')
+                 cout << "END2END" << endl;
+                 //clientEndToEnd();
+         } while (incoming[0] == '@');
+        } else {
+         cout << "Extraneous packet received." << endl;
+        }
+    }
+
+		// //
+		// // Parse incoming
+		// //
+		// if (incoming[0] == '!') {
+		// 	// All packets for this file succesfully received
+		// 	// Commence end2end check
+		// 	//clientEndToEnd()
+		// 	cout << "END2END" << endl;
+		// } else if (incoming[0] == '@') {
+		// 	do {
+		// 		// Packet(s) requested by server
+		// 		int requestedPacketNum   = stoi(incoming.substr(1,16));
+		// 		string requestedFileName = incoming.substr(16,40);
+		// 		// Resend requested packet
+		// 		data_message = dataPackets[requestedPacketNum - 1];
+
+  //               //cout << "requested packet: " << requestedPacketNum-1 << endl;
+  //               //cout << "data message is " << data_message << endl;
+
+		// 		assert(readRequested == true);
+		// 		incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
+  //               //cout << "incoming is: " << incoming << endl;
+		// 		if (incoming[0] == '!')
+		// 			cout << "END2END" << endl;
+		// 			//clientEndToEnd();
+		// 	} while (incoming[0] == '@');
+		// } else {
+		// 	cout << "Extraneous packet received." << endl;
+		// }
 }
 
 /*

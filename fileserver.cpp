@@ -163,7 +163,7 @@ main(int argc, char *argv[])
     	  // -1 in size below is to leave room for null
     	  //
 
-            cout << "HERE" << endl;
+            //cout << "HERE" << endl;
     	  readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
     	  if (readlen == 0) {
     	    c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
@@ -267,7 +267,6 @@ main(int argc, char *argv[])
             cout << "starting file " << pckt1.filename << endl;
 
             copyfile(&pckt1, sock, directory);
-            cout << "4" << endl;
           }
 	   }
      } 
@@ -419,7 +418,6 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     char incomingMessage[512];
 	string checksum = string(pckt1->checksum);
     int intPack = stoi(pckt1->numPackets);
-    struct dataPacket filePacket[intPack+1];
     string data;
     int numPacketsReceived[intPack];
     for(int i = 0; i < intPack; i++) {
@@ -455,7 +453,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                         packetLostNum = to_string(i+1);
                         while(packetLostNum.length() < 16)
                             packetLostNum = "0" + packetLostNum;
-                        //cout << "Lost Packet: " << i << endl;
+                        cout << "Lost Packet: " << i << endl;
                         lostPacketMsg = PCT_LOST + packetLostNum + fileNameHash;
                         packetsLost++;
                         packetDone--;
@@ -468,20 +466,16 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                 if(packetsLost == 0) {
                     cout << "Writing all good" << endl;
                     lostPacketMsg = PCT_DONE + fileNameHash;
-                    cout << "1" << endl;
                     //cout << "message2: " << lostPacketMsg << endl;
                     c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                     "fileclient", lostPacketMsg);
-                    cout << "2" << endl;
                     sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
-                    cout << "3" << endl;
                     return 0;
                 }
                 else {
                     continue;
                 }
             }
-            cout << "5" << endl; 
 
 			//cout << "READLEN: " << readlen << endl;
 			if (readlen == 0) {
@@ -529,6 +523,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 
 		currentFile.fseek(399 * (packetNum - 1), SEEK_SET);
 
+        cout << "writing packet " << packetNum << endl;
         if(!currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()))
             perror("Could not write to file\n");
         currentFile.fclose();
