@@ -78,7 +78,7 @@ void sha1string(const char *input, char *sha1);
 #define FIN_ACK  '7'
 #define FST_PCT  '8'
 #define PCT_DONE '!'
-#define PCT_LOST "@"
+#define PCT_LOST '@'
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -150,7 +150,7 @@ main(int argc, char *argv[])
        c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 nastiness);
        C150NastyDgmSocket *sock = new C150NastyDgmSocket(nastiness);
-       sock -> turnOnTimeouts(5000);
+       sock -> turnOnTimeouts(1000);
        c150debug->printf(C150APPLICATION,"Ready to accept messages");
 
        //
@@ -162,6 +162,8 @@ main(int argc, char *argv[])
               // Read a packet
     	  // -1 in size below is to leave room for null
     	  //
+
+            cout << "HERE" << endl;
     	  readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
     	  if (readlen == 0) {
     	    c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
@@ -240,6 +242,7 @@ main(int argc, char *argv[])
           else if(incoming[0] == FST_PCT) {
             //cout << "In the correct place" << endl;
             struct initialPacket pckt1;
+            cout << "first message: " << incoming << endl;
             //cout << "INCOMING IS: " << incoming << endl;
             // cout << "numPackets IS: " << incoming.length() << endl;
 
@@ -264,6 +267,7 @@ main(int argc, char *argv[])
             cout << "starting file " << pckt1.filename << endl;
 
             copyfile(&pckt1, sock, directory);
+            cout << "4" << endl;
           }
 	   }
      } 
@@ -415,7 +419,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     char incomingMessage[512];
 	string checksum = string(pckt1->checksum);
     int intPack = stoi(pckt1->numPackets);
-    struct dataPacket filePacket[intPack];
+    struct dataPacket filePacket[intPack+1];
     string data;
     int numPacketsReceived[intPack];
     for(int i = 0; i < intPack; i++) {
@@ -432,7 +436,6 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 	cout << "FILENAME: " << pckt1 -> filename << endl;
 	sha1string(pckt1 -> filename, sha1buf);
 	string initFileNameHash = string(sha1buf);
-	cout << initFileNameHash << endl;
 
 	string packet_type;
 	int packetNum, packetsLost;
@@ -440,42 +443,46 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 	bool sameFileName;
     while(1) {
 		do {
-            if(packetDone < intPack) {
+            if(packetDone <= intPack) {
 			     readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
-             }
+            }
 
-            if(sock -> timedout() == true or (packetDone == intPack)) {
+            if((sock -> timedout() == true) or (packetDone >= intPack)) {
                 packetsLost = 0;
                 for(int i = 0; i < intPack; i++) {
                     if(numPacketsReceived[i+1] != 1) {
-                        cout << "Writing missing file" << endl;
-                        packetLostNum = to_string(i);
+                        //cout << "Writing missing file" << endl;
+                        packetLostNum = to_string(i+1);
                         while(packetLostNum.length() < 16)
                             packetLostNum = "0" + packetLostNum;
+                        //cout << "Lost Packet: " << i << endl;
                         lostPacketMsg = PCT_LOST + packetLostNum + fileNameHash;
                         packetsLost++;
+                        packetDone--;
                         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", lostPacketMsg);
-                        cout << "message1: " << lostPacketMsg << endl;
+                        //cout << "message1: " << lostPacketMsg << endl;
                         sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
                     }
                 }
                 if(packetsLost == 0) {
                     cout << "Writing all good" << endl;
                     lostPacketMsg = PCT_DONE + fileNameHash;
-                    cout << "message2: " << lostPacketMsg << endl;
+                    cout << "1" << endl;
+                    //cout << "message2: " << lostPacketMsg << endl;
                     c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                     "fileclient", lostPacketMsg);
+                    cout << "2" << endl;
                     sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
+                    cout << "3" << endl;
                     return 0;
                 }
                 else {
                     continue;
                 }
+            }
+            cout << "5" << endl; 
 
-            } 
-
-			//cout << incomingMessage << endl;
 			//cout << "READLEN: " << readlen << endl;
 			if (readlen == 0) {
 				c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
@@ -490,6 +497,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 												// easier to work with, and cleanString
 												// expects it
 			//Have to have this before it is cleaned to preserve newlines
+           // cout << "rest messages: " << incoming << endl;
             if(incoming[0] != '9')
                 continue;
 			if(incoming.length() > 97)
@@ -504,8 +512,6 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			string checksum     = incoming.substr(1, 40).c_str();
 			fileNameHash = incoming.substr(41, 40).c_str();
 			packetNum           = stoi(incoming.substr(81, 16));
-            cout << "Current File: " << pckt1->filename << endl;
-            cout << "Current Packet: " << packetNum << endl;
 		
 			sameFileName = fileNameHash == initFileNameHash;
 

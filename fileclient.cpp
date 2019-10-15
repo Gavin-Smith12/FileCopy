@@ -158,6 +158,7 @@ main(int argc, char *argv[]) {
 		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 networkNasty);
         C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
+        //sock -> turnOnTimeouts(3000);
         c150debug->printf(C150APPLICATION,"Ready to accept messages");
         sock -> setServerName(argv[1]); 
 		//
@@ -324,7 +325,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
 						+ dataPkt.packetNum + dataPkt.data;
 		dataPackets[i] = data_message;
-		cout << data_message << endl;
+		//cout << data_message << endl;
 		
 		char *incomingp;
 		if ((incomingp = sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested)) != NULL) {
@@ -347,16 +348,18 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 				// Resend requested packet
 				data_message = dataPackets[requestedPacketNum - 1];
 
+                //cout << "requested packet: " << requestedPacketNum-1 << endl;
+                //cout << "data message is " << data_message << endl;
+
 				assert(readRequested == true);
 				incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
-
+                //cout << "incoming is: " << incoming << endl;
 				if (incoming[0] == '!')
 					cout << "END2END" << endl;
 					//clientEndToEnd();
 			} while (incoming[0] == '@');
 		} else {
 			cout << "Extraneous packet received." << endl;
-			cout << "incoming[0]: " << incoming[0] << endl;
 		}
 	}
 }
@@ -552,14 +555,14 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
     while(sendMessageAgain == true) {
 		// Message is a message code prepended to the message text
 
-        cout << "MESSAGE IS: " << msg << endl;
-        cout << "string message size: " << msgSize << endl;
+        //cout << "MESSAGE IS: " << msg << endl;
+        //cout << "string message size: " << msgSize << endl;
 
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
 
 		// Write message to socket
-		cout << "MSG: " << msg << endl;
+		//cout << "MSG: " << msg << endl;
         sock -> write(msg, msgSize); // +1 includes the null
 
 		//
@@ -582,7 +585,9 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
 			c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
 				"pingclient");
 			readlen = sock -> read(incomingMsg, 512);
-			cout << readlen << endl;
+            readlen++;
+            readlen--;
+			//cout << readlen << endl;
 			//
 			// Keep sending messages if timedout, else check and print messsage
 			// 	and return incoming message string.
@@ -592,7 +597,10 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
 				cout << "TIMEDOUT" << endl;
 			} else {
 				sendMessageAgain = false;
-				checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
+                //cout << "readlen: " << readlen << endl;
+                //cout << "size: " << sizeof(incomingMsg) << endl;
+                //cout << "incoming message " << incomingMsg << endl;
+				//checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
 				return incomingMsg;
 			}
 		} else {
