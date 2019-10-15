@@ -251,11 +251,14 @@ main(int argc, char *argv[])
             strncpy(pckt1.checksum, incoming.substr(1, 40).c_str(), 40);
             //cout << "ERROR 2a " << pckt1.checksum << endl;
             strncpy(pckt1.numPackets, incoming.substr(41, 16).c_str(), 16);
+
             //
             //cout << "NUMPACKETS: " << stoi(incoming.substr(41,16)) << endl;
             //pckt1.numPackets = incoming.at(42);
             //cout << "ERROR 3a " << pckt1.numPackets << endl;
             strncpy(pckt1.filename, incoming.substr(57).c_str(), MAX_FILE_NAME);
+            
+            cout << "starting file " << pckt1.filename << endl;
 
             copyfile(&pckt1, sock, directory);
           }
@@ -410,6 +413,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 	string checksum = string(pckt1->checksum);
     int intPack = stoi(pckt1->numPackets);
     struct dataPacket filePacket[intPack];
+    string data;
 
 	//
 	// Get hash of filename from initial packet for comparisons
@@ -425,9 +429,15 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 	string packet_type;
 	int packetNum;
 	bool sameFileName;
-    for(int i = 0; i < intPack; i++) {
+    while(1) {
 		do {
 			readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
+
+            if((sock -> timedout() == true)) {
+                cout << "I timed out" << endl;
+                return 0;
+            } 
+
 			//cout << incomingMessage << endl;
 			//cout << "READLEN: " << readlen << endl;
 			if (readlen == 0) {
@@ -443,10 +453,13 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 												// easier to work with, and cleanString
 												// expects it
 			//Have to have this before it is cleaned to preserve newlines
+            if(incoming[0] != '9')
+                continue;
 			if(incoming.length() > 97)
-				filePacket[i].data = incoming.substr(97).c_str();
+				data = incoming.substr(97).c_str();
 			cleanString(incoming);            // c150ids-supplied utility: changes
 												// non-printing characters to .
+            //cout << "Packet Length: " << incoming.length() << endl;
 			c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
 						readlen, incoming.c_str());
 
@@ -454,11 +467,11 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			string checksum     = incoming.substr(1, 40).c_str();
 			string fileNameHash = incoming.substr(41, 40).c_str();
 			packetNum           = stoi(incoming.substr(81, 16));
-            cout << "Current Packet: " << packetNum << endl;
+            //cout << "Current Packet: " << packetNum << endl;
 		
 			sameFileName = fileNameHash == initFileNameHash;
 
-		} while(packetNum != i and packet_type != "9" and !sameFileName);
+		} while(packet_type != "9" or !sameFileName);
 		//cout << "\n\n INCOMING MSG: " << incomingMessage << endl;
 
         string currFileName = string(directory) + "/" + pckt1->filename + ".tmp";
@@ -472,9 +485,12 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 
 		currentFile.fseek(399 * (packetNum - 1), SEEK_SET);
 
-        if(!currentFile.fwrite((void*) filePacket[i].data.c_str(), 1, (size_t) filePacket[i].data.length()))
+        if(!currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()))
             perror("Could not write to file\n");
         currentFile.fclose();
+
+        if(packetNum == intPack)
+            break;
     }
 
     return 0;
