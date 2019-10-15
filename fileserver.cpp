@@ -162,7 +162,6 @@ main(int argc, char *argv[])
               // Read a packet
     	  // -1 in size below is to leave room for null
     	  //
-          cout << "back here?" << endl;
     	  readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
     	  if (readlen == 0) {
     	    c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
@@ -180,8 +179,6 @@ main(int argc, char *argv[])
     	                                    // non-printing characters to .
               c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
     			    readlen, incoming.c_str());
-
-          cout << "message: " << incoming << endl;
 
             //cout << "INCOMING MESSAGE: " << incomingMessage << endl;
 
@@ -241,7 +238,6 @@ main(int argc, char *argv[])
             sock -> write(response.c_str(), response.length()+1);
           }
           else if(incoming[0] == FST_PCT) {
-            cout << "first" << endl;
             //cout << "In the correct place" << endl;
             struct initialPacket pckt1;
             //cout << "INCOMING IS: " << incoming << endl;
@@ -460,16 +456,17 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                         packetsLost++;
                         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", lostPacketMsg);
+                        cout << "message1: " << lostPacketMsg << endl;
                         sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
                     }
                 }
                 if(packetsLost == 0) {
                     cout << "Writing all good" << endl;
                     lostPacketMsg = PCT_DONE + fileNameHash;
-                    //c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
-                    //"fileclient", lostPacketMsg);
-                    //sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
-                    cout << "past?" << endl;
+                    cout << "message2: " << lostPacketMsg << endl;
+                    c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
+                    "fileclient", lostPacketMsg);
+                    sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
                     return 0;
                 }
                 else {
@@ -493,7 +490,6 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 												// easier to work with, and cleanString
 												// expects it
 			//Have to have this before it is cleaned to preserve newlines
-            cout << "incoming data: " << incoming << endl;
             if(incoming[0] != '9')
                 continue;
 			if(incoming.length() > 97)
