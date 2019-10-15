@@ -428,8 +428,8 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     for(int i = 0; i < intPack; i++) {
 		do {
 			readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
-			cout << incomingMessage << endl;
-			cout << "READLEN: " << readlen << endl;
+			//cout << incomingMessage << endl;
+			//cout << "READLEN: " << readlen << endl;
 			if (readlen == 0) {
 				c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
 				continue;
@@ -454,10 +454,11 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			string checksum     = incoming.substr(1, 40).c_str();
 			string fileNameHash = incoming.substr(41, 40).c_str();
 			packetNum           = stoi(incoming.substr(81, 16));
+            cout << "Current Packet: " << packetNum << endl;
 		
 			sameFileName = fileNameHash == initFileNameHash;
 
-		} while(packetNum != i or packet_type != "9" or !sameFileName);
+		} while(packetNum != i and packet_type != "9" and !sameFileName);
 		//cout << "\n\n INCOMING MSG: " << incomingMessage << endl;
 
         string currFileName = string(directory) + "/" + pckt1->filename + ".tmp";
@@ -469,7 +470,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			currentFile.fopen(currFileName.c_str(), "w");
 		}
 
-		currentFile.fseek(399 * packetNum - 1, SEEK_SET);
+		currentFile.fseek(399 * (packetNum - 1), SEEK_SET);
 
         if(!currentFile.fwrite((void*) filePacket[i].data.c_str(), 1, (size_t) filePacket[i].data.length()))
             perror("Could not write to file\n");
