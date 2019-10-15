@@ -346,6 +346,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 			} while (incoming[0] == '@');
 		} else {
 			cout << "Extraneous packet received." << endl;
+			cout << "incoming[0]: " << incoming[0] << endl;
 		}
 	}
 	
@@ -534,17 +535,17 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 	// Declare variables
 	//
     char *incomingMsg = (char *) malloc(512); // MAX_PACKET_SIZE
-    //ssize_t readlen;
-    //bool sendMessageAgain = true;
+    ssize_t readlen;
+    bool sendMessageAgain = true;
 
-	//
+	
 	// Loop until successful read on socket (no timeout)
-	//
-    //while(sendMessageAgain == true) {
+	
+    while(sendMessageAgain == true) {
 		// Message is a message code prepended to the message text
 
-        // cout << "MESSAGE IS: " << msg << endl;
-        // cout << "string message size: " << msgSize << endl;
+        cout << "MESSAGE IS: " << msg << endl;
+        cout << "string message size: " << msgSize << endl;
 
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
@@ -570,21 +571,21 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 		//
         c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
                "pingclient");
-    	//readlen = sock -> read(incomingMsg, 512);
-		//cout << readlen << endl;
-		// //
-  //       // Keep sending messages if timedout, else check and print messsage
-		// // 	and return incoming message string.
-		// //
-  //       if((sock -> timedout() == true)) {
-  //           sendMessageAgain = true;
-  //       } else {
-  //           sendMessageAgain = false;
-  //           checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
-  //           // TODO: RETURN RECVD MESSAGE
-		// 	return NULL;
-  //       }
-  //   }
+    	readlen = sock -> read(incomingMsg, 512);
+		cout << readlen << endl;
+		//
+        // Keep sending messages if timedout, else check and print messsage
+		// 	and return incoming message string.
+		//
+        if((sock -> timedout() == true)) {
+            sendMessageAgain = true;
+        } else {
+            sendMessageAgain = false;
+            checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
+            // TODO: RETURN RECVD MESSAGE
+			break;
+        }
+    }
     return incomingMsg;
 }
 
