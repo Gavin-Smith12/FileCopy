@@ -63,6 +63,7 @@
 #include "c150debug.h"
 #include "c150grading.h"
 #include "c150nastyfile.h" 
+#include <cassert>
 #include <fstream>
 #include <sstream>
 #include <stdio.h>
@@ -83,7 +84,7 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void checkDirectory(char *dirname);
-char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock);
+char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, bool readRequested);
 void sha1file(const char *filename, char *sha1);
 void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock);
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock);
@@ -221,6 +222,7 @@ void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock) {
 
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock) {
 	int fsize, numDataPackets;
+	bool readRequested = false;
 
 	nastyFile.fseek(0, SEEK_END);
 	fsize = nastyFile.ftell();
@@ -259,7 +261,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 
     string temp_checksum = "0000011111222223333344444555556666677777";
     string first_message = initPkt.packet_type + temp_checksum + numPacketsStr + string(filename);
-	sendMessageToServer(first_message.c_str(), first_message.length(), sock);
+	assert(readRequested == false);
+	sendMessageToServer(first_message.c_str(), first_message.length(), sock, readRequested);
 
 	//
 	// TODO: ADD CONFIRMATION OF RECEIPT OF INITIAL PACKET
@@ -301,6 +304,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 			//
 			read = nastyFile.fread(databuf, 1, fsize % (MAX_DATA_SIZE - 1));
 			cout << "LAST DATABUF SIZE: " << read << endl;
+			readRequested = true;
 		} else {
 			read = nastyFile.fread(databuf, 1, MAX_DATA_SIZE - 1);
 		}
@@ -321,7 +325,11 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 						+ dataPkt.packetNum + dataPkt.data;
 		dataPackets[i] = data_message;
 		cout << data_message << endl;
-		incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock));
+		
+		char *incomingp;
+		if ((incomingp = sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested)) != NULL) {
+			incoming = string(incomingp);
+		}
 
 		//
 		// Parse incoming
@@ -338,7 +346,9 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 				string requestedFileName = incoming.substr(16,40);
 				// Resend requested packet
 				data_message = dataPackets[requestedPacketNum - 1];
-				incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock));
+
+				assert(readRequested == true);
+				incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
 
 				if (incoming[0] == '!')
 					cout << "END2END" << endl;
@@ -349,8 +359,6 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 			cout << "incoming[0]: " << incoming[0] << endl;
 		}
 	}
-	
-
 }
 
 /*
@@ -530,11 +538,11 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
                   C150NETWORKDELIVERY); 
 }
 
-char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) {
+char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, bool readRequested) {
 	//
 	// Declare variables
 	//
-    char *incomingMsg = (char *) malloc(512); // MAX_PACKET_SIZE
+    char *incomingMsg = NULL; 
     ssize_t readlen;
     bool sendMessageAgain = true;
 
@@ -569,22 +577,27 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 		//
         // Read the response from the server
 		//
-        c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
-               "pingclient");
-    	readlen = sock -> read(incomingMsg, 512);
-		cout << readlen << endl;
-		//
-        // Keep sending messages if timedout, else check and print messsage
-		// 	and return incoming message string.
-		//
-        if((sock -> timedout() == true)) {
-            sendMessageAgain = true;
-        } else {
-            sendMessageAgain = false;
-            checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
-            // TODO: RETURN RECVD MESSAGE
-			break;
-        }
+		if (readRequested) {
+			incomingMsg = (char *) malloc(512); // MAX_PACKET_SIZE
+			c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
+				"pingclient");
+			readlen = sock -> read(incomingMsg, 512);
+			cout << readlen << endl;
+			//
+			// Keep sending messages if timedout, else check and print messsage
+			// 	and return incoming message string.
+			//
+			if((sock -> timedout() == true)) {
+				sendMessageAgain = true;
+				cout << "TIMEDOUT" << endl;
+			} else {
+				sendMessageAgain = false;
+				checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
+				return incomingMsg;
+			}
+		} else {
+			sendMessageAgain = false;
+		}
     }
     return incomingMsg;
 }
