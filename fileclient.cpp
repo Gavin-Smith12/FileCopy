@@ -87,6 +87,7 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock);
 void sha1file(const char *filename, char *sha1);
 void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock);
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock);
+void sha1string(const char *input, char *sha1);
 // void sendreceiveprint()
 // void clientEndToEnd();
 
@@ -185,6 +186,7 @@ main(int argc, char *argv[]) {
         cerr << argv[0] << ": caught C150NetworkException: " << e.formattedExplanation() << endl;
     } 
 
+	cout << "END OF MAIN" << endl;
     return 0;
 }
 
@@ -219,11 +221,6 @@ void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock) {
 
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock) {
 	int fsize, numDataPackets;
-	//char *dataPktBytes, *initPktBytes;
-    //char *dataPktBytes;
-
-	//initPktBytes = (char *) malloc(sizeof(struct initialPacket));
-	// dataPktBytes = (char *) malloc(sizeof(struct dataPacket));
 
 	nastyFile.fseek(0, SEEK_END);
 	fsize = nastyFile.ftell();
@@ -231,17 +228,19 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		return; // File empty
 	}
 	if (fsize > MAX_DATA_SIZE - 1) {
-		numDataPackets = (int) (fsize / MAX_DATA_SIZE - 1);
+		numDataPackets = (int) (fsize / (MAX_DATA_SIZE - 1));
 		if (fsize % (MAX_DATA_SIZE - 1) != 0) {
 			numDataPackets += 1;
 		}
 	} else {
 		numDataPackets = 1;
 	}
+
+	cout << "NUM DATA PACKETS: " << numDataPackets << endl;
+
 	// Seek back to beginning for reading
 	nastyFile.rewind();
 	struct initialPacket initPkt;
-
 
 
 	string numPacketsStr = to_string(numDataPackets);
@@ -260,9 +259,11 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	struct dataPacket dataPkt;
 	int i;
 	char * databuf = (char *) malloc(MAX_DATA_SIZE);
+	char * sha1buf = (char *) malloc((SHA_DIGEST_LENGTH * 2) + 1);
+	memset(sha1buf, 0, (SHA_DIGEST_LENGTH * 2) + 1);
+	char * pktToChecksum;
 	for(i = 0; i < numDataPackets - 1; i++) {
-		dataPkt.checksum     = "0000011111222223333344444555556666677777";
-		dataPkt.fileNameHash = "0000011111222223333344444555556666677777";
+		dataPkt.fileNameHash = string("0000011111222223333344444555556666677777");
 		dataPkt.packetNum = to_string(i + 1);
 		if (dataPkt.packetNum.length() > 16)
 			perror("Number of packets too large to store in 16 chars.");
@@ -273,14 +274,24 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		int res = nastyFile.fread(databuf, 1, MAX_DATA_SIZE - 1);
 		cout << res << endl;
 
-		cout << databuf << endl;
+		// cout << databuf << endl;
 		dataPkt.data     = string(databuf);
-		cout << dataPkt.data.length() << endl;
+
+		cout << "DATA SIZE: " << dataPkt.data.length() << " FOR PKT #" << i + 1 << " OF " << filename << endl;
+		cout << "DATA: " << dataPkt.data << endl;
+
+		// Checksum rest of packet
+		int pktCheckSize = strlen(((dataPkt.packet_type + dataPkt.fileNameHash + dataPkt.packetNum + dataPkt.data).c_str()));
+		pktToChecksum = (char *) malloc(pktCheckSize); // Does not include this checksum
+		strncpy(pktToChecksum, (dataPkt.packet_type + dataPkt.fileNameHash + dataPkt.packetNum + dataPkt.data).c_str(), pktCheckSize);
+		sha1string(pktToChecksum, sha1buf);
+		dataPkt.checksum = string(sha1buf);
+		// cout << dataPkt.checksum << endl;
 
 		// send packet
 		data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
 						+ dataPkt.packetNum + dataPkt.data;
-		sendMessageToServer(data_message.c_str(), data_message.length(), sock);
+		// sendMessageToServer(data_message.c_str(), data_message.length(), sock);
 	}
 	// Create last data packet
 	dataPkt.checksum     = "0000011111222223333344444555556666677777";
@@ -293,8 +304,10 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 	}
 	// TODO: account for last packet being MAX_DATA_SIZE
 	memset(databuf, 0, MAX_DATA_SIZE);
-	nastyFile.fread(databuf, 1, fsize % (MAX_DATA_SIZE - 1));
+	int read = nastyFile.fread(databuf, 1, fsize % (MAX_DATA_SIZE - 1));
+	cout << "LAST DATABUF SIZE: " << read << endl;
 	dataPkt.data = string(databuf);
+	cout << "DATA: " << dataPkt.data << endl;
 
 	// send packet
 	data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
@@ -493,8 +506,8 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
     //while(sendMessageAgain == true) {
 		// Message is a message code prepended to the message text
 
-        cout << "MESSAGE IS: " << msg << endl;
-        cout << "string message size: " << msgSize << endl;
+        // cout << "MESSAGE IS: " << msg << endl;
+        // cout << "string message size: " << msgSize << endl;
 
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
