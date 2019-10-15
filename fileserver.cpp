@@ -68,6 +68,7 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 int endCheck(string file_name, string file_hash, string directory);
 void sha1file(const char *filename, char *sha1);
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory);
+void sha1string(const char *input, char *sha1);
 
 #define REQ_CHK  '0'
 #define CHK_SUCC '2'
@@ -171,7 +172,7 @@ main(int argc, char *argv[])
     	  string incoming(incomingMessage); // Convert to C++ string ...it's slightly
     	                                    // easier to work with, and cleanString
     	                                    // expects it
-    	  cleanString(incoming);            // c150ids-supplied utility: changes
+    	  //cleanString(incoming);            // c150ids-supplied utility: changes
     	                                    // non-printing characters to .
               c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
     			    readlen, incoming.c_str());
@@ -211,7 +212,7 @@ main(int argc, char *argv[])
             string file_path = string(argv[3]) + "/";
             *GRADING << "File: " << file_name << " end-to-end check succeeded" << endl;
             //Print a message saying that file passed
-            cout << "File: " << file_name << " passed end-to-end check.\n" << endl;
+            //cout << "File: " << file_name << " passed end-to-end check.\n" << endl;
             //Rename the file to get rid of the .tmp extension
             if(rename((file_path + file_name + ".tmp").c_str(), (file_path + file_name).c_str()))
                 cerr << "Could not rename file\n" << endl;
@@ -227,16 +228,16 @@ main(int argc, char *argv[])
              string file_name = incoming.substr(1);
             *GRADING << "File: " << file_name << " end-to-end check failed" << endl;
             //Print statement of failure
-            cout << "File: " << file_name << " failed end-to-end check.\n" << endl;
+            //cout << "File: " << file_name << " failed end-to-end check.\n" << endl;
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
                     response.c_str());
             sock -> write(response.c_str(), response.length()+1);
           }
           else if(incoming[0] == FST_PCT) {
-            cout << "In the correct place" << endl;
+            //cout << "In the correct place" << endl;
             struct initialPacket pckt1;
-            cout << "INCOMING IS: " << incoming << endl;
+            //cout << "INCOMING IS: " << incoming << endl;
             // cout << "numPackets IS: " << incoming.length() << endl;
 
             //Set all variables of the initial packet
@@ -246,12 +247,12 @@ main(int argc, char *argv[])
             //     std::cout << std::hex << (int)incoming[i];
             // cout << endl;
             pckt1.packet_type = FST_PCT;
-            cout << "ERROR 1a " << pckt1.packet_type << endl;
+            //cout << "ERROR 1a " << pckt1.packet_type << endl;
             strncpy(pckt1.checksum, incoming.substr(1, 40).c_str(), 40);
-            cout << "ERROR 2a " << pckt1.checksum << endl;
+            //cout << "ERROR 2a " << pckt1.checksum << endl;
             strncpy(pckt1.numPackets, incoming.substr(41, 16).c_str(), 16);
             //
-            cout << "NUMPACKETS: " << stoi(incoming.substr(41,16)) << endl;
+            //cout << "NUMPACKETS: " << stoi(incoming.substr(41,16)) << endl;
             //pckt1.numPackets = incoming.at(42);
             //cout << "ERROR 3a " << pckt1.numPackets << endl;
             strncpy(pckt1.filename, incoming.substr(57).c_str(), MAX_FILE_NAME);
@@ -403,80 +404,106 @@ void sha1file(const char *filename, char *sha1) {
 
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) {
 
-    cout << "BEGINNING" << endl;
     C150NastyFile currentFile(0);
-    cout << "1" << endl;
     ssize_t readlen;             
     char incomingMessage[512];
-    cout << "type is: " << pckt1->packet_type << endl;
 	string checksum = string(pckt1->checksum);
-    cout << "checksum is: " << checksum << endl;
-    cout << "checksum length is: " << checksum.length() << endl;
-	cout << "num pkts is: " << stoi(pckt1->numPackets) << endl;
     int intPack = stoi(pckt1->numPackets);
-    //cout << "length is: " << pckt1->numPackets << endl;
-    //printf("Length is: %x\n", pckt1->numPackets);
-    //cout << "filename length is: " << pckt1->filename_length << endl;
-    cout << "filename: " << pckt1->filename << endl;
     struct dataPacket filePacket[intPack];
-    cout << "3" << endl;
 
+	//
+	// Get hash of filename from initial packet for comparisons
+	//
+	char * sha1buf = (char *) malloc((SHA_DIGEST_LENGTH * 2) + 1);
+	memset(sha1buf, 0, (SHA_DIGEST_LENGTH * 2) + 1);
+
+	cout << "FILENAME: " << pckt1 -> filename << endl;
+	sha1string(pckt1 -> filename, sha1buf);
+	string initFileNameHash = string(sha1buf);
+	cout << initFileNameHash << endl;
+
+	string packet_type;
+	int packetNum;
+	bool sameFileName;
     for(int i = 0; i < intPack; i++) {
-        cout << "4" << endl;
-        readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
-        cout << "5" << endl;
-        if (readlen == 0) {
-            c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
-            continue;
-        }
+		do {
+			readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
+			cout << incomingMessage << endl;
+			cout << "READLEN: " << readlen << endl;
+			if (readlen == 0) {
+				c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
+				continue;
+			}
 
-        //
-        // Clean up the message in case it contained junk
-        //
-        incomingMessage[readlen] = '\0'; // make sure null terminated
-        string incoming(incomingMessage); // Convert to C++ string ...it's slightly
-                                            // easier to work with, and cleanString
-                                            // expects it
-        //Have to have this before it is cleaned to preserve newlines
-        cout << "MESSAGE CODE: " << incoming[0] << endl;
-         if(incoming[0] != '9') {
-             cout << "```````````````````````````````````````````````````````````````````````````````````````````````````````````` "<< endl;
-             return 0;
-         }
-        cout << "LENGTHLENGTHLENGTH: " << incoming.length() << endl;
-        if(incoming.length() > 97)
-            filePacket[i].data = incoming.substr(97).c_str();
-        cleanString(incoming);            // c150ids-supplied utility: changes
-                                            // non-printing characters to .
-        c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
-                    readlen, incoming.c_str());
+			//
+			// Clean up the message in case it contained junk
+			//
+			incomingMessage[readlen] = '\0'; // make sure null terminated
+			string incoming(incomingMessage); // Convert to C++ string ...it's slightly
+												// easier to work with, and cleanString
+												// expects it
+			//Have to have this before it is cleaned to preserve newlines
+			if(incoming.length() > 97)
+				filePacket[i].data = incoming.substr(97).c_str();
+			cleanString(incoming);            // c150ids-supplied utility: changes
+												// non-printing characters to .
+			c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
+						readlen, incoming.c_str());
 
-        cout << "ERROR INCOMING: " << incoming << endl;
-        cout << "INCOMINGMESSAGE: " << incomingMessage << endl;
- 
-        cout << "ERROR 0" << endl;
-        filePacket[i].packet_type = incoming[0];
-        cout << "ERROR 1" << endl;
-        filePacket[i].checksum = incoming.substr(1, 40).c_str();
-        cout << "ERROR 2" << endl;
-        filePacket[i].fileNameHash = incoming.substr(41, 40).c_str();
-        cout << "ERROR 3" << endl;
-        filePacket[i].packetNum = stoi(incoming.substr(81, 16));
-        cout << "ERROR 4" << endl;
-    
+			packet_type         = incoming[0];
+			string checksum     = incoming.substr(1, 40).c_str();
+			string fileNameHash = incoming.substr(41, 40).c_str();
+			packetNum           = stoi(incoming.substr(81, 16));
+		
+			sameFileName = fileNameHash == initFileNameHash;
+
+		} while(packetNum != i or packet_type != "9" or !sameFileName);
+		//cout << "\n\n INCOMING MSG: " << incomingMessage << endl;
 
         string currFileName = string(directory) + "/" + pckt1->filename + ".tmp";
 
-        if(currentFile.fopen(currFileName.c_str(), "a") == NULL)
-            perror("Could not open file\n");
+		ifstream ifile(currFileName);
+		if (ifile) {
+			currentFile.fopen(currFileName.c_str(), "r+");
+		} else {
+			currentFile.fopen(currFileName.c_str(), "w");
+		}
 
-        cout << "DATA IS : " << filePacket[i].data << endl;
-        cout << "DATA SIZE IS : " << filePacket[i].data.length() << endl;
+		currentFile.fseek(399 * packetNum - 1, SEEK_SET);
 
-        if(!currentFile.fwrite((void*) filePacket[i].data.c_str(), (size_t) filePacket[i].data.length(), 1))
+        if(!currentFile.fwrite((void*) filePacket[i].data.c_str(), 1, (size_t) filePacket[i].data.length()))
             perror("Could not write to file\n");
         currentFile.fclose();
     }
 
     return 0;
+}
+
+void sha1string(const char *input, char *sha1) {
+	//
+	// Declare variables
+	//
+	unsigned char temp[SHA_DIGEST_LENGTH];
+	char ostr[(SHA_DIGEST_LENGTH * 2) + 1];
+
+	//
+	// Zero-initalize buffers
+	//
+	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1); // Human-readable SHA-1 digest
+	memset(temp, 0, SHA_DIGEST_LENGTH);	// Raw SHA-1 digest buffer
+
+    SHA1((const unsigned char *) input, strlen(input), temp);
+	
+	//
+	// Write the SHA-1 digest bytes in human-readable form to a string
+	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
+	//
+	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
+    }
+
+	//
+	// Copy human-readable output string to function user-returned variable
+	//
+	memcpy(sha1, ostr, (SHA_DIGEST_LENGTH * 2) + 1);
 }
