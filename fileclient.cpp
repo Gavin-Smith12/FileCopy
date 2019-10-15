@@ -238,7 +238,14 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 
 	cout << "NUM DATA PACKETS: " << numDataPackets << endl;
 
+	//
+	// Array holds all dataPackets for this file in case need to resend
+	//
+	string dataPackets[numDataPackets];
+
+	//
 	// Seek back to beginning for reading
+	//
 	nastyFile.rewind();
 	struct initialPacket initPkt;
 
@@ -253,6 +260,10 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
     string temp_checksum = "0000011111222223333344444555556666677777";
     string first_message = initPkt.packet_type + temp_checksum + numPacketsStr + string(filename);
 	sendMessageToServer(first_message.c_str(), first_message.length(), sock);
+
+	//
+	// TODO: ADD CONFIRMATION OF RECEIPT OF INITIAL PACKET
+	//
 
 	//
 	// Create and send data packets
@@ -274,7 +285,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 
 	string data_message; 
 	int i;
-	for(i = 0; i < numDataPackets - 1; i++) {
+	string incoming;
+	for(i = 0; i < numDataPackets; i++) {
 		dataPkt.packetNum = to_string(i + 1);
 		if (dataPkt.packetNum.length() > 16)
 			perror("Number of packets too large to store in 16 chars.");
@@ -282,14 +294,18 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 			dataPkt.packetNum = "0" + dataPkt.packetNum;
 		}	
 		memset(databuf, 0, MAX_DATA_SIZE);
-		int res = nastyFile.fread(databuf, 1, MAX_DATA_SIZE - 1);
-		cout << res << endl;
+		int read;
+		if (i == numDataPackets - 1) {
+			//
+			// TODO: account for last packet being MAX_DATA_SIZE
+			//
+			read = nastyFile.fread(databuf, 1, fsize % (MAX_DATA_SIZE - 1));
+			cout << "LAST DATABUF SIZE: " << read << endl;
+		} else {
+			read = nastyFile.fread(databuf, 1, MAX_DATA_SIZE - 1);
+		}
 
-		// cout << databuf << endl;
-		dataPkt.data     = string(databuf);
-
-		//cout << "DATA SIZE: " << dataPkt.data.length() << " FOR PKT #" << i + 1 << " OF " << filename << endl;
-		//cout << "DATA: " << dataPkt.data << endl;
+		dataPkt.data = string(databuf);
 
 		// Checksum rest of packet
 		int pktCheckSize = strlen(((dataPkt.packet_type + dataPkt.fileNameHash + dataPkt.packetNum + dataPkt.data).c_str()));
@@ -297,35 +313,43 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		strncpy(pktToChecksum, (dataPkt.packet_type + dataPkt.fileNameHash + dataPkt.packetNum + dataPkt.data).c_str(), pktCheckSize);
 		sha1string(pktToChecksum, sha1buf);
 		dataPkt.checksum = string(sha1buf);
-		// cout << dataPkt.checksum << endl;
 
-		// send packet
+		//
+		// Store and send packet
+		//
 		data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
 						+ dataPkt.packetNum + dataPkt.data;
-		sendMessageToServer(data_message.c_str(), data_message.length(), sock);
-	}
-	//
-	// Create last data packet
-	//
-	// TODO: Change this checksum to be the real value
-	dataPkt.checksum     = "0000011111222223333344444555556666677777";
-	// Filename hash already set
-	dataPkt.packetNum = to_string(i + 1);
-	if (dataPkt.packetNum.length() > 16)
-		perror("Number of packets too large to store in 16 chars.");
-	while(dataPkt.packetNum.length() < 16) {
-		dataPkt.packetNum = "0" + dataPkt.packetNum;
-	}
-	// TODO: account for last packet being MAX_DATA_SIZE
-	memset(databuf, 0, MAX_DATA_SIZE);
-	int read = nastyFile.fread(databuf, 1, fsize % (MAX_DATA_SIZE - 1));
-	cout << "LAST DATABUF SIZE: " << read << endl;
-	dataPkt.data = string(databuf);
+		dataPackets[i] = data_message;
+		cout << data_message << endl;
+		incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock));
 
-	// send packet
-	data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
-					+ dataPkt.packetNum + dataPkt.data;
-	sendMessageToServer(data_message.c_str(), data_message.length(), sock);
+		//
+		// Parse incoming
+		//
+		if (incoming[0] == '!') {
+			// All packets for this file succesfully received
+			// Commence end2end check
+			//clientEndToEnd()
+			cout << "END2END" << endl;
+		} else if (incoming[0] == '@') {
+			do {
+				// Packet(s) requested by server
+				int requestedPacketNum   = stoi(incoming.substr(1,16));
+				string requestedFileName = incoming.substr(16,40);
+				// Resend requested packet
+				data_message = dataPackets[requestedPacketNum - 1];
+				incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock));
+
+				if (incoming[0] == '!')
+					cout << "END2END" << endl;
+					//clientEndToEnd();
+			} while (incoming[0] == '@');
+		} else {
+			cout << "Extraneous packet received." << endl;
+		}
+	}
+	
+
 }
 
 /*
@@ -509,8 +533,8 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 	//
 	// Declare variables
 	//
-    //char incomingMsg[512];
-    //ssize_t readlen; 
+    char *incomingMsg = (char *) malloc(512); // MAX_PACKET_SIZE
+    //ssize_t readlen;
     //bool sendMessageAgain = true;
 
 	//
@@ -544,10 +568,10 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 		//
         // Read the response from the server
 		//
-  //       c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
-  //             "pingclient");
-  //       readlen = sock -> read(incomingMsg, sizeof(incomingMsg));
-
+        c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
+               "pingclient");
+    	//readlen = sock -> read(incomingMsg, 512);
+		//cout << readlen << endl;
 		// //
   //       // Keep sending messages if timedout, else check and print messsage
 		// // 	and return incoming message string.
@@ -561,7 +585,7 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock) 
 		// 	return NULL;
   //       }
   //   }
-    return NULL;
+    return incomingMsg;
 }
 
 void checkDirectory(char *dirname) {
