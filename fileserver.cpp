@@ -80,6 +80,7 @@ int fileNasty = 0;
 #define ACK_FAIL '6' //Client acknowledging failure
 #define FIN_ACK  '7' //Server ending end to end check
 #define INIT_FCP '8' //Client beginning copying a file
+#define INIT_ACK '$' //Server acknowldges the initial packet
 #define DATA_FCP '9' //Packets that contain file data
 #define PKT_DONE '!' //Server telling client that all packets have been copied
 #define PKT_LOST '@' //Server asking for a packet that was not written
@@ -199,12 +200,6 @@ main(int argc, char *argv[])
 			//has not been checked yet
 			string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
 
-			cout << "INCOMING IS " << incoming << endl;
-
-			// Grading statements, will be changed once file copy is added
-			*GRADING << "File: " << file_name.substr(file_name.length() - 4) << " starting to receive file" << endl;
-			*GRADING << "File: " << file_name.substr(file_name.length() - 4) << " received, beginning end-to-end check" << endl;
-
 			// Calls the end to end check which reports 2 with success and 3 with failure
 			int file_status = endCheck(file_name, file_hash, (string)directory);
 
@@ -255,7 +250,16 @@ main(int argc, char *argv[])
             strncpy(pckt1.numPackets, incoming.substr(1, 16).c_str(), 16);
             strncpy(pckt1.filename, incoming.substr(17).c_str(), MAX_FILE_NAME);
 
+            *GRADING << "File: " << pckt1.filename << " starting to receive file" << endl;
+
+            string initAck = INIT_ACK + pckt1.filename;
+
+            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+                    initAck.c_str());
+            sock -> write(initAck.c_str(), initAck.length()+1);
+
             copyfile(&pckt1, sock, directory);
+            *GRADING << "File: " << pckt1.filename << " received, beginning end-to-end check" << endl;
         }
 	   	}
     } 
