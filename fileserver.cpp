@@ -69,18 +69,21 @@ int endCheck(string file_name, string file_hash, string directory);
 void sha1file(const char *filename, char *sha1);
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory);
 void sha1string(const char *input, char *sha1);
+void fileCheck(string currFileName, int packetNum, C150NastyFile& currentFile, string data);
 
 int fileNasty = 0;
 
-#define REQ_CHK  '0'
-#define CHK_SUCC '2'
-#define CHK_FAIL '3'
-#define ACK_SUCC '5'
-#define ACK_FAIL '6'
-#define FIN_ACK  '7'
-#define FST_PCT  '8'
-#define PKT_DONE '!'
-#define PKT_LOST '@'
+#define REQ_CHK  '0' //Client requesting an end to end check
+#define CHK_SUCC '2' //End to end check succeeded
+#define CHK_FAIL '3' //End to end check failed
+#define ACK_SUCC '5' //CLient acknowledging success
+#define ACK_FAIL '6' //Client acknowledging failure
+#define FIN_ACK  '7' //Server ending end to end check
+#define INIT_FCP '8' //Client beginning copying a file
+#define INIT_ACK '$' //Server acknowldges the initial packet
+#define DATA_FCP '9' //Packets that contain file data
+#define PKT_DONE '!' //Server telling client that all packets have been copied
+#define PKT_LOST '@' //Server asking for a packet that was not written
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -197,12 +200,6 @@ main(int argc, char *argv[])
 			//has not been checked yet
 			string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
 
-			cout << "INCOMING IS " << incoming << endl;
-
-			// Grading statements, will be changed once file copy is added
-			*GRADING << "File: " << file_name.substr(file_name.length() - 4) << " starting to receive file" << endl;
-			*GRADING << "File: " << file_name.substr(file_name.length() - 4) << " received, beginning end-to-end check" << endl;
-
 			// Calls the end to end check which reports 2 with success and 3 with failure
 			int file_status = endCheck(file_name, file_hash, (string)directory);
 
@@ -236,45 +233,33 @@ main(int argc, char *argv[])
 		//If the incomine message is an acknowlegement of failure
 		else if(incoming[0] == ACK_FAIL) {
 			cout << "ACK_FAIL" << endl;
-			//Attack 7 for the final acknowledgement
+			//Attach 7 for the final acknowledgement
 			string response = FIN_ACK + incoming.substr(1);
 				string file_name = incoming.substr(1);
 			*GRADING << "File: " << file_name << " end-to-end check failed" << endl;
-			//Print statement of failure
-			//cout << "File: " << file_name << " failed end-to-end check.\n" << endl;
 
 			c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
 					response.c_str());
 			sock -> write(response.c_str(), response.length()+1);
 		}
-		else if(incoming[0] == FST_PCT) {
-            //cout << "In the correct place" << endl;
+		else if(incoming[0] == INIT_FCP) {
+
             struct initialPacket pckt1;
-            cout << "first message: " << incoming << endl;
-            //cout << "INCOMING IS: " << incoming << endl;
-            // cout << "numPackets IS: " << incoming.length() << endl;
 
-            //Set all variables of the initial packet
-            // struct initialPacket* pckt = (struct initialPacket*) incoming.c_str();
-            // cout << "incoming length: " << incoming.length() << endl;
-            // for(int i=0; i<(int)incoming.length(); ++i)
-            //     std::cout << std::hex << (int)incoming[i];
-            // cout << endl;
-            pckt1.packet_type = FST_PCT;
-            //cout << "ERROR 1a " << pckt1.packet_type << endl;
-            strncpy(pckt1.checksum, incoming.substr(1, 40).c_str(), 40);
-            //cout << "ERROR 2a " << pckt1.checksum << endl;
-            strncpy(pckt1.numPackets, incoming.substr(41, 16).c_str(), 16);
+            pckt1.packet_type = INIT_FCP;
+            strncpy(pckt1.numPackets, incoming.substr(1, 16).c_str(), 16);
+            strncpy(pckt1.filename, incoming.substr(17).c_str(), MAX_FILE_NAME);
 
-            //
-            //cout << "NUMPACKETS: " << stoi(incoming.substr(41,16)) << endl;
-            //pckt1.numPackets = incoming.at(42);
-            //cout << "ERROR 3a " << pckt1.numPackets << endl;
-            strncpy(pckt1.filename, incoming.substr(57).c_str(), MAX_FILE_NAME);
+            *GRADING << "File: " << pckt1.filename << " starting to receive file" << endl;
 
-            cout << "starting file " << pckt1.filename << endl;
+            string initAck = INIT_ACK + pckt1.filename;
+
+            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+                    initAck.c_str());
+            sock -> write(initAck.c_str(), initAck.length()+1);
 
             copyfile(&pckt1, sock, directory);
+            *GRADING << "File: " << pckt1.filename << " received, beginning end-to-end check" << endl;
         }
 	   	}
     } 
@@ -450,15 +435,20 @@ void sha1file(const char *filename, char *sha1) {
 
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) {
 
-    C150NastyFile currentFile(0);
-    ssize_t readlen;             
-    char incomingMessage[512];
-	string packetLostNum, fileNameHash, lostPacketMsg;
-	string checksum = string(pckt1->checksum);
-    int intPack = stoi(pckt1->numPackets);
-    string data;
-    int numPacketsReceived[intPack];
-    for(int i = 0; i < intPack; i++) {
+    C150NastyFile currentFile(fileNasty); //Nastyfile object for file operations
+    ssize_t readlen; //Readlen for checking reading length
+    char incomingMessage[512]; //Incoming message buffer
+    //packetLostNum is number of packet in the sequence that was lost
+    //fileNameHash is the hash of the current file name
+    //lostPacketMsg is the message sent to the client asking for a packet
+    //to be sent again or saying that copying is done
+    //data is the data being sent to be written 
+	string packetLostNum, fileNameHash, lostPacketMsg, data;
+    int numPack = stoi(pckt1->numPackets); //numPack is the number of packets expected 
+    int numPacketsReceived[numPack]; //numPacketsReceived keeps track of which packets are lost
+    //Set to all zero so that no packet is accidentely seen as written when 
+    //it was not been 
+    for(int i = 0; i < numPack; i++) {
         numPacketsReceived[i] = 0;
     }
     
@@ -472,41 +462,56 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 	sha1string(pckt1 -> filename, sha1buf);
 	string initFileNameHash = string(sha1buf);
 
-	string packet_type;
-	int packetNum, packetsLost;
-    int packetDone = 0;
-	bool sameFileName;
+	string packet_type; //Checks what type of packet is being received
+	int packetNum, packetsLost; //packetNum is the current packet being read
+                                //packetsLost is the number of packets lost total
+    int packetDone = 0; //Number of packets written successfully
+	bool sameFileName; //Used to check if the file being dealt with is correct
 
+    //Loop executes until the server tells the client the file has been fully copied
     while (1) {
 		do {
-            if(packetDone <= intPack) {
+            //If the number of packets that has been successfully written is 
+            //equal to or greater than the number of packets expected, don't read
+            if(packetDone <= numPack) {
 			     readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
             }
 
-            if((sock -> timedout() == true) or (packetDone >= intPack)) {
+            //If the read times out or all packets have been received, go into 
+            //to either request more packets or tell client copying is done
+            if((sock -> timedout() == true) or (packetDone >= numPack)) {
                 packetsLost = 0;
-                for (int i = 0; i < intPack; i++) {
+
+                //Loop through the checking array to see if any packets are missing
+                for (int i = 0; i < numPack; i++) {
                     if (numPacketsReceived[i+1] != 1) {
-                        //cout << "Writing missing file" << endl;
+
                         packetLostNum = to_string(i+1);
+
                         while(packetLostNum.length() < 16)
                             packetLostNum = "0" + packetLostNum;
-                        cout << "Lost Packet: " << i << endl;
+
+                        //Create a packet that tells the client what packet was 
+                        //not read
                         lostPacketMsg = PKT_LOST + packetLostNum + fileNameHash;
+                        //Iterate that a packet was lost
                         packetsLost++;
+                        //Decrement because this packet was not read correctly
                         packetDone--;
                         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       						"fileclient", lostPacketMsg);
-                        //cout << "message1: " << lostPacketMsg << endl;
                         sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
                     }
                 }
+                //If all packets were written correctly, tell the client you are 
+                //done
                 if (packetsLost == 0) {
                     lostPacketMsg = PKT_DONE + fileNameHash;
                     sleep(1);
                     c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                     					"fileclient", lostPacketMsg);
                     sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
+                    //This is the only time the function should return
                     return 0;
                 } else {
                     continue;
@@ -526,47 +531,86 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 												// easier to work with, and cleanString
 												// expects it
 			//Have to have this before it is cleaned to preserve newlines
-           // cout << "rest messages: " << incoming << endl;
-            if(incoming[0] != '9')
+
+            //Ignore the packet if it is not a data packet
+            if(incoming[0] != DATA_FCP)
                 continue;
-			if(incoming.length() > 97)
-				data = incoming.substr(97).c_str();
+
+            //If the packet does not contain any data do not read data
+			if(incoming.length() > 57)
+				data = incoming.substr(57).c_str();
+
 			cleanString(incoming);            // c150ids-supplied utility: changes
 												// non-printing characters to .
-            //cout << "Packet Length: " << incoming.length() << endl;
+
 			c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
 						readlen, incoming.c_str());
 
+            //Read in the packet information
 			packet_type         = incoming[0];
-			string checksum     = incoming.substr(1, 40).c_str();
-			fileNameHash = incoming.substr(41, 40).c_str();
-			packetNum           = stoi(incoming.substr(81, 16));
+			fileNameHash = incoming.substr(1, 40).c_str();
+			packetNum           = stoi(incoming.substr(41, 16));
 	
+            //Check that we are working with the correct file (to meet invariant
+            //that one file is copied at a time)
 			sameFileName = fileNameHash == initFileNameHash;
 
-		} while(packet_type != "9" or !sameFileName);
+		} while(packet_type != "9" or !sameFileName); //Only taking in packets
+        //of the correct type and file
 
         string currFileName = string(directory) + "/" + pckt1->filename + ".tmp";
 
-		ifstream ifile(currFileName);
-		if (ifile) {
-			currentFile.fopen(currFileName.c_str(), "r+");
-		} else {
-			currentFile.fopen(currFileName.c_str(), "w");
-		}
+        fileCheck(currFileName, packetNum, currentFile, data);
 
-		if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
+        //Acknowledge that the packet was written correctly
+        numPacketsReceived[packetNum] = 1;
+        packetDone++;
+    }
+    //This return should never execute.
+    return 0;
+}
+
+void fileCheck(string currFileName, int packetNum, C150NastyFile& currentFile, string data) {
+
+    void* fileNastyCheck = NULL;
+    char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
+    char *sha2 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
+    bool fileCheck = true;
+
+    do {
+        //Check if the file exists, if it does already open it for updating,
+        //if not open it with "w" so that it is created
+        ifstream ifile(currFileName);
+        if (ifile) {
+            currentFile.fopen(currFileName.c_str(), "r+");
+        } else {
+            currentFile.fopen(currFileName.c_str(), "w");
+        }
+
+        //Seek to the correct place in the file (data is 399 long)
+        if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
             perror("fseek failed\n");
 
         if (currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()) < data.length())
             perror("Could not write to file\n");
+
+        if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
+            perror("fseek failed\n");
+
+        if(currentFile.fread(fileNastyCheck, 1, data.length()) < data.length())
+            perror("Could not read from file\n");
+
+        sha1string((char*) fileNastyCheck, sha1);
+        sha1string(data.c_str(), sha2);
+
+        if(strcmp(sha1, sha2))
+            fileCheck = false;
+
         currentFile.fclose();
+    } while(fileCheck == true);
 
-        numPacketsReceived[packetNum] = 1;
-        packetDone++;
-    }
-
-    return 0;
+    free(sha1);
+    free(sha2);
 }
 
 void sha1string(const char *input, char *sha1) {
