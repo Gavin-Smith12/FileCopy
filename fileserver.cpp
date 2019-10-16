@@ -187,11 +187,14 @@ main(int argc, char *argv[])
           //If the incoming message is the initial check we have to start the 
           //end-to-end check
           if(incoming[0] == REQ_CHK) {
+            cout << "REQ_CHK" << endl;
             //Get the hash of the file out of the message
             string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2));
             //Get the file name out of the message and add .tmp because it 
             //has not been checked yet
             string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
+
+            cout << "INCOMING IS " << incoming << endl;
 
             //Grading statements, will be changed once file copy is added
             *GRADING << "File: " << file_name.substr(file_name.length()-4) << " starting to receive file" << endl;
@@ -210,6 +213,7 @@ main(int argc, char *argv[])
           } 
           //If the incoming message is an acknowledgement of success
           else if(incoming[0] == ACK_SUCC) {
+            cout << "ACC_SUCC" << endl;
             //Attach 7 for the final acknowledgement
             string response = FIN_ACK + incoming.substr(1);
             //Get file name and path
@@ -228,6 +232,7 @@ main(int argc, char *argv[])
           }
           //If the incomine message is an acknowlegement of failure
           else if(incoming[0] == ACK_FAIL) {
+            cout << "ACK_FAIL" << endl;
             //Attack 7 for the final acknowledgement
             string response = FIN_ACK + incoming.substr(1);
              string file_name = incoming.substr(1);
@@ -376,6 +381,10 @@ int endCheck(string file_name, string file_hash, string directory) {
 	//Check the given file against the given sha1
     sha1file(filename, sha1);
 
+    cout << string(sha1) << endl;
+    cout << file_hash << endl;
+    cout << file_name << endl;
+
     //Return 2 if the files are the same and 3 if they are different
     if(string(sha1) == file_hash)
         return 2;
@@ -466,7 +475,8 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                 if(packetsLost == 0) {
                     cout << "Writing all good" << endl;
                     lostPacketMsg = PCT_DONE + fileNameHash;
-                    //cout << "message2: " << lostPacketMsg << endl;
+                    cout << "message2: " << lostPacketMsg << endl;
+                    sleep(1);
                     c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                     "fileclient", lostPacketMsg);
                     sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
@@ -521,11 +531,11 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			currentFile.fopen(currFileName.c_str(), "w");
 		}
 
-        cout << "Packet number is " << packetNum << endl; 
+        //cout << "Packet number is " << packetNum << endl; 
 		if(currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
             perror("fseek failed\n");
         //cout << "Current Data Is " << data << endl;
-        cout << "Writing at " << 399 * (packetNum - 1) << endl;
+        //cout << "Writing at " << 399 * (packetNum - 1) << endl;
         if(currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()) < data.length())
             perror("Could not write to file\n");
         currentFile.fclose();
