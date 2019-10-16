@@ -79,8 +79,8 @@ int fileNasty = 0;
 #define ACK_FAIL '6'
 #define FIN_ACK  '7'
 #define FST_PCT  '8'
-#define PCT_DONE '!'
-#define PCT_LOST '@'
+#define PKT_DONE '!'
+#define PKT_LOST '@'
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -99,154 +99,155 @@ main(int argc, char *argv[])
   
     GRADEME(argc, argv);
 
-     //
-     // Variable declarations
-     //
-     ssize_t readlen;             // amount of data read from socket
-     char incomingMessage[512];   // received message data
-     int nastiness;               // how aggressively do we drop packets, etc?
-     char *directory = argv[3];
+	//
+	// Variable declarations
+	//
+	ssize_t readlen;             // amount of data read from socket
+	char incomingMessage[512];   // received message data
+	int nastiness;               // how aggressively do we drop packets, etc?
+	char *directory = argv[3];
 
-     //
-     // Check command line and parse arguments
-     //
-     if (argc != 4)  {
-       fprintf(stderr,"Correct syntxt is: %s <networknastiness> <filenastiness> <targetdir>\n", argv[0]);
-          exit(1);
-     }
-     if (strspn(argv[1], "0123456789") != strlen(argv[1])) {
-	 fprintf(stderr,"Nastiness %s is not numeric\n", argv[1]);     
-	 fprintf(stderr,"Correct syntxt is: %s <nastiness_number>\n", argv[0]);     
-	 exit(4);
-     }
-     nastiness = atoi(argv[1]);   // convert command line string to integer
-	 fileNasty = atoi(argv[2]);
-     //
-     //  Set up debug message logging
-     //
-     setUpDebugLogging("pingserverdebug.txt",argc, argv);
+	//
+	// Check command line and parse arguments
+	//
+	if (argc != 4)  {
+		fprintf(stderr,"Correct syntxt is: %s <networknastiness> <filenastiness> <targetdir>\n", argv[0]);
+		exit(1);
+	}
+	if (strspn(argv[1], "0123456789") != strlen(argv[1])) {
+		fprintf(stderr,"Nastiness %s is not numeric\n", argv[1]);     
+		fprintf(stderr,"Correct syntxt is: %s <nastiness_number>\n", argv[0]);     
+		exit(4);
+	}
 
-     //
-     // We set a debug output indent in the server only, not the client.
-     // That way, if we run both programs and merge the logs this way:
-     //
-     //    cat pingserverdebug.txt pingserverclient.txt | sort
-     //
-     // it will be easy to tell the server and client entries apart.
-     //
-     // Note that the above trick works because at the start of each
-     // log entry is a timestamp that sort will indeed arrange in 
-     // timestamp order, thus merging the logs by time across 
-     // server and client.
-     //
-     c150debug->setIndent("    ");              // if we merge client and server
-                                                // logs, server stuff will be indented
+	// convert command line strings to integers
+	nastiness = atoi(argv[1]);   
+	fileNasty = atoi(argv[2]);
 
-     //
-     // Create socket, loop receiving and responding
-     //
-     try {
-       //   c150debug->printf(C150APPLICATION,"Creating C150DgmSocket");
-       //   C150DgmSocket *sock = new C150DgmSocket();
+	//
+	//  Set up debug message logging
+	//
+	setUpDebugLogging("pingserverdebug.txt",argc, argv);
 
-       c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
-			 nastiness);
-       C150NastyDgmSocket *sock = new C150NastyDgmSocket(nastiness);
-       sock -> turnOnTimeouts(1000);
-       c150debug->printf(C150APPLICATION,"Ready to accept messages");
+	//
+	// We set a debug output indent in the server only, not the client.
+	// That way, if we run both programs and merge the logs this way:
+	//
+	//    cat pingserverdebug.txt pingserverclient.txt | sort
+	//
+	// it will be easy to tell the server and client entries apart.
+	//
+	// Note that the above trick works because at the start of each
+	// log entry is a timestamp that sort will indeed arrange in 
+	// timestamp order, thus merging the logs by time across 
+	// server and client.
+	//
+	c150debug->setIndent("    ");           	// if we merge client and server
+												// logs, server stuff will be indented
 
-       //
-       // infinite loop processing messages
-       //
-       while(1)	{
+	//
+	// Create socket, loop receiving and responding
+	//
+	try {
+		//   c150debug->printf(C150APPLICATION,"Creating C150DgmSocket");
+		//   C150DgmSocket *sock = new C150DgmSocket();
 
-    	  //
-              // Read a packet
-    	  // -1 in size below is to leave room for null
-    	  //
+		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
+				nastiness);
+		C150NastyDgmSocket *sock = new C150NastyDgmSocket(nastiness);
+		sock -> turnOnTimeouts(1000);
+		c150debug->printf(C150APPLICATION,"Ready to accept messages");
 
-            //cout << "HERE" << endl;
-    	  readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
-    	  if (readlen == 0) {
-    	    c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
-    	    continue;
-    	  }
+		//
+		// infinite loop processing messages
+		//
+		while(1) {
 
-    	  //
-    	  // Clean up the message in case it contained junk
-    	  //
-    	  incomingMessage[readlen] = '\0'; // make sure null terminated
-    	  string incoming(incomingMessage); // Convert to C++ string ...it's slightly
-    	                                    // easier to work with, and cleanString
-    	                                    // expects it
-    	  //cleanString(incoming);            // c150ids-supplied utility: changes
-    	                                    // non-printing characters to .
-              c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
-    			    readlen, incoming.c_str());
+			//
+			// Read a packet
+			// -1 in size below is to leave room for null
+			//
 
-            //cout << "INCOMING MESSAGE: " << incomingMessage << endl;
+			readlen = sock -> read(incomingMessage, sizeof(incomingMessage) - 1);
+			if (readlen == 0) {
+				c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
+				continue;
+    	 	}
 
-          //If the incoming message is the initial check we have to start the 
-          //end-to-end check
-          if(incoming[0] == REQ_CHK) {
-            cout << "REQ_CHK" << endl;
-            //Get the hash of the file out of the message
-            string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2));
-            //Get the file name out of the message and add .tmp because it 
-            //has not been checked yet
-            string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
+		//
+		// Clean up the message in case it contained junk
+		//
+		incomingMessage[readlen] = '\0'; // make sure null terminated
+		string incoming(incomingMessage); // Convert to C++ string ...it's slightly
+										// easier to work with, and cleanString
+										// expects it
+		//cleanString(incoming);            // c150ids-supplied utility: changes
+										// non-printing characters to .
+		c150debug->printf(C150APPLICATION,"Successfully read %d bytes. Message=\"%s\"",
+			readlen, incoming.c_str());
 
-            cout << "INCOMING IS " << incoming << endl;
 
-            //Grading statements, will be changed once file copy is added
-            *GRADING << "File: " << file_name.substr(file_name.length()-4) << " starting to receive file" << endl;
-            *GRADING << "File: " << file_name.substr(file_name.length()-4) << " received, beginning end-to-end check" << endl;
+		// Check for protocol code REQ_CHK
+		// Requests an end to end check for a given file
+		if (incoming[0] == REQ_CHK) {
+			cout << "REQ_CHK" << endl;
+			//Get the hash of the file out of the message
+			string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2));
+			//Get the file name out of the message and add .tmp because it 
+			//has not been checked yet
+			string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
 
-            //Calls the end to end check which reports 2 with success and 3 with failure
-            int file_status = endCheck(file_name, file_hash, (string)directory);
+			cout << "INCOMING IS " << incoming << endl;
 
-            //Response is the message code with the file name 
-            string response = to_string(file_status) + incoming.substr((SHA_DIGEST_LENGTH * 2) + 1);
+			// Grading statements, will be changed once file copy is added
+			*GRADING << "File: " << file_name.substr(file_name.length() - 4) << " starting to receive file" << endl;
+			*GRADING << "File: " << file_name.substr(file_name.length() - 4) << " received, beginning end-to-end check" << endl;
 
-            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
-                    response.c_str());
-            sock -> write(response.c_str(), response.length()+1);
+			// Calls the end to end check which reports 2 with success and 3 with failure
+			int file_status = endCheck(file_name, file_hash, (string)directory);
 
-          } 
-          //If the incoming message is an acknowledgement of success
-          else if(incoming[0] == ACK_SUCC) {
-            cout << "ACC_SUCC" << endl;
-            //Attach 7 for the final acknowledgement
-            string response = FIN_ACK + incoming.substr(1);
-            //Get file name and path
-            string file_name = incoming.substr(1);
-            string file_path = string(argv[3]) + "/";
-            *GRADING << "File: " << file_name << " end-to-end check succeeded" << endl;
-            //Print a message saying that file passed
-            //cout << "File: " << file_name << " passed end-to-end check.\n" << endl;
-            //Rename the file to get rid of the .tmp extension
-            if(rename((file_path + file_name + ".tmp").c_str(), (file_path + file_name).c_str()))
-                cerr << "Could not rename file\n" << endl;
+			//Response is the message code with the file name 
+			string response = to_string(file_status) + incoming.substr((SHA_DIGEST_LENGTH * 2) + 1);
 
-            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
-                    response.c_str());
-            sock -> write(response.c_str(), response.length()+1);
-          }
-          //If the incomine message is an acknowlegement of failure
-          else if(incoming[0] == ACK_FAIL) {
-            cout << "ACK_FAIL" << endl;
-            //Attack 7 for the final acknowledgement
-            string response = FIN_ACK + incoming.substr(1);
-             string file_name = incoming.substr(1);
-            *GRADING << "File: " << file_name << " end-to-end check failed" << endl;
-            //Print statement of failure
-            //cout << "File: " << file_name << " failed end-to-end check.\n" << endl;
+			c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+					response.c_str());
+			sock -> write(response.c_str(), response.length()+1);
+		} 
 
-            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
-                    response.c_str());
-            sock -> write(response.c_str(), response.length()+1);
-          }
-          else if(incoming[0] == FST_PCT) {
+		// If the incoming message is an acknowledgement of success
+		else if (incoming[0] == ACK_SUCC) {
+
+			// Prepend protocol message FIN_ACK for the final acknowledgement
+			string response = FIN_ACK + incoming.substr(1);
+
+			//Get file name and path
+			string file_name = incoming.substr(1);
+			string file_path = string(argv[3]) + "/";
+			*GRADING << "File: " << file_name << " end-to-end check succeeded" << endl;
+
+			// Rename the file to get rid of the .tmp extension
+			if(rename((file_path + file_name + ".tmp").c_str(), (file_path + file_name).c_str()))
+				cerr << "Could not rename file\n" << endl;
+
+			c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+					response.c_str());
+			sock -> write(response.c_str(), response.length()+1);
+		}
+		//If the incomine message is an acknowlegement of failure
+		else if(incoming[0] == ACK_FAIL) {
+			cout << "ACK_FAIL" << endl;
+			//Attack 7 for the final acknowledgement
+			string response = FIN_ACK + incoming.substr(1);
+				string file_name = incoming.substr(1);
+			*GRADING << "File: " << file_name << " end-to-end check failed" << endl;
+			//Print statement of failure
+			//cout << "File: " << file_name << " failed end-to-end check.\n" << endl;
+
+			c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+					response.c_str());
+			sock -> write(response.c_str(), response.length()+1);
+		}
+		else if(incoming[0] == FST_PCT) {
             //cout << "In the correct place" << endl;
             struct initialPacket pckt1;
             cout << "first message: " << incoming << endl;
@@ -274,9 +275,9 @@ main(int argc, char *argv[])
             cout << "starting file " << pckt1.filename << endl;
 
             copyfile(&pckt1, sock, directory);
-          }
-	   }
-     } 
+        }
+	   	}
+    } 
 
      catch (C150NetworkException& e) {
        // Write to debug log
@@ -372,29 +373,28 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
 
 }
 
-//Function takes in information about the file and returns a status code 
-//of 2 for success and 3 for failure
+// Function takes in information about the file and returns a status code 
+// Status code: 2 for success
+// 				3 for failure
 int endCheck(string file_name, string file_hash, string directory) {
-    //Create sha1
+    // Allocate SHA-1 buffer
     char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
-    //file_name = directory + "/" + file_name;
+    
+	// file_name = directory + "/" + file_name;
     file_name = directory + "/" + file_name;
     const char *filename = file_name.c_str();
 
-	//Check the given file against the given sha1
+	// Check the given file against the given sha1
     sha1file(filename, sha1);
 
-    cout << string(sha1) << endl;
-    cout << file_hash << endl;
-    cout << file_name << endl;
-
-    //Return 2 if the files are the same and 3 if they are different
-    if(string(sha1) == file_hash)
+    // Return 2 if the files are the same
+	// Return 3 if they are different
+    if (string(sha1) == file_hash)
         return 2;
     else 
         return 3;
-
 }
+
 void sha1file(const char *filename, char *sha1) {
 
 	//
@@ -453,6 +453,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     C150NastyFile currentFile(0);
     ssize_t readlen;             
     char incomingMessage[512];
+	string packetLostNum, fileNameHash, lostPacketMsg;
 	string checksum = string(pckt1->checksum);
     int intPack = stoi(pckt1->numPackets);
     string data;
@@ -460,7 +461,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     for(int i = 0; i < intPack; i++) {
         numPacketsReceived[i] = 0;
     }
-    string packetLostNum, fileNameHash, lostPacketMsg;
+    
 
 	//
 	// Get hash of filename from initial packet for comparisons
@@ -468,7 +469,6 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 	char * sha1buf = (char *) malloc((SHA_DIGEST_LENGTH * 2) + 1);
 	memset(sha1buf, 0, (SHA_DIGEST_LENGTH * 2) + 1);
 
-	cout << "FILENAME: " << pckt1 -> filename << endl;
 	sha1string(pckt1 -> filename, sha1buf);
 	string initFileNameHash = string(sha1buf);
 
@@ -476,7 +476,8 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 	int packetNum, packetsLost;
     int packetDone = 0;
 	bool sameFileName;
-    while(1) {
+
+    while (1) {
 		do {
             if(packetDone <= intPack) {
 			     readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
@@ -484,38 +485,34 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 
             if((sock -> timedout() == true) or (packetDone >= intPack)) {
                 packetsLost = 0;
-                for(int i = 0; i < intPack; i++) {
-                    if(numPacketsReceived[i+1] != 1) {
+                for (int i = 0; i < intPack; i++) {
+                    if (numPacketsReceived[i+1] != 1) {
                         //cout << "Writing missing file" << endl;
                         packetLostNum = to_string(i+1);
                         while(packetLostNum.length() < 16)
                             packetLostNum = "0" + packetLostNum;
                         cout << "Lost Packet: " << i << endl;
-                        lostPacketMsg = PCT_LOST + packetLostNum + fileNameHash;
+                        lostPacketMsg = PKT_LOST + packetLostNum + fileNameHash;
                         packetsLost++;
                         packetDone--;
                         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
-                      "fileclient", lostPacketMsg);
+                      						"fileclient", lostPacketMsg);
                         //cout << "message1: " << lostPacketMsg << endl;
                         sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
                     }
                 }
-                if(packetsLost == 0) {
-                    cout << "Writing all good" << endl;
-                    lostPacketMsg = PCT_DONE + fileNameHash;
-                    cout << "message2: " << lostPacketMsg << endl;
+                if (packetsLost == 0) {
+                    lostPacketMsg = PKT_DONE + fileNameHash;
                     sleep(1);
                     c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
-                    "fileclient", lostPacketMsg);
+                    					"fileclient", lostPacketMsg);
                     sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
                     return 0;
-                }
-                else {
+                } else {
                     continue;
                 }
             }
 
-			//cout << "READLEN: " << readlen << endl;
 			if (readlen == 0) {
 				c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
 				continue;
@@ -544,11 +541,10 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			string checksum     = incoming.substr(1, 40).c_str();
 			fileNameHash = incoming.substr(41, 40).c_str();
 			packetNum           = stoi(incoming.substr(81, 16));
-		
+	
 			sameFileName = fileNameHash == initFileNameHash;
 
 		} while(packet_type != "9" or !sameFileName);
-		//cout << "\n\n INCOMING MSG: " << incomingMessage << endl;
 
         string currFileName = string(directory) + "/" + pckt1->filename + ".tmp";
 
@@ -559,12 +555,10 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			currentFile.fopen(currFileName.c_str(), "w");
 		}
 
-        //cout << "Packet number is " << packetNum << endl; 
-		if(currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
+		if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
             perror("fseek failed\n");
-        //cout << "Current Data Is " << data << endl;
-        //cout << "Writing at " << 399 * (packetNum - 1) << endl;
-        if(currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()) < data.length())
+
+        if (currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()) < data.length())
             perror("Could not write to file\n");
         currentFile.fclose();
 
