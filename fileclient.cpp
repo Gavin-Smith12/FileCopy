@@ -248,6 +248,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 	int numDataPackets;
 	bool readRequested = false;
 	char *incomingp;
+	string incoming;
 
 	numDataPackets = numPacketsFile(nastyFile);
 
@@ -303,7 +304,6 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 
 	string dataMessage; 
 	int i;
-	string incoming;
 	for(i = 0; i < numDataPackets; i++) {
 		dataPkt.packetNum = to_string(i + 1);
 		if (dataPkt.packetNum.length() > 16)

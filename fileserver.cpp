@@ -246,7 +246,7 @@ main(int argc, char *argv[])
 
             struct initialPacket pckt1;
 
-            pckt1.packet_type = INIT_FCP;
+            pckt1.packetType = INIT_FCP;
             strncpy(pckt1.numPackets, incoming.substr(1, 16).c_str(), 16);
             strncpy(pckt1.filename, incoming.substr(17).c_str(), MAX_FILE_NAME);
 
