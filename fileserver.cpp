@@ -70,6 +70,8 @@ void sha1file(const char *filename, char *sha1);
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory);
 void sha1string(const char *input, char *sha1);
 
+int fileNasty = 0;
+
 #define REQ_CHK  '0'
 #define CHK_SUCC '2'
 #define CHK_FAIL '3'
@@ -118,7 +120,7 @@ main(int argc, char *argv[])
 	 exit(4);
      }
      nastiness = atoi(argv[1]);   // convert command line string to integer
-       
+	 fileNasty = atoi(argv[2]);
      //
      //  Set up debug message logging
      //
@@ -393,32 +395,57 @@ int endCheck(string file_name, string file_hash, string directory) {
         return 3;
 
 }
-
-//Function taken from the sha1 file given to us
 void sha1file(const char *filename, char *sha1) {
-    ifstream *t;
-    stringstream *buffer;
+
+	//
+	// Declare variables
+	//
+    // ifstream *t;
+    // stringstream *buffer;
+	unsigned char * buffer;
+	C150NastyFile nastyFile(fileNasty);
 	unsigned char temp[SHA_DIGEST_LENGTH];
 	char ostr[(SHA_DIGEST_LENGTH * 2) + 1];
 
-	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1);
-	memset(temp, 0, SHA_DIGEST_LENGTH);
+	//
+	// Zero-initalize buffers
+	//
+	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1); // Human-readable SHA-1 digest
+	memset(temp, 0, SHA_DIGEST_LENGTH);	// Raw SHA-1 digest buffer
 
-    t = new ifstream(filename);
-    buffer = new stringstream;
-    *buffer << t->rdbuf();
-    SHA1((const unsigned char *)buffer->str().c_str(), 
-            (buffer->str()).length(), temp);
+	//
+	// Open file, read from file, get SHA-1 digest
+	//
+	void *ret = nastyFile.fopen(filename, "r");
+	if (ret == NULL) {
+		perror("Cannot open file.");
+		exit(1);
+	}
+	int fsize = 0;
+	nastyFile.fseek(0, SEEK_END);
+	fsize = nastyFile.ftell();
+	buffer = (unsigned char *) malloc(fsize);
+	nastyFile.fread(buffer, 1, fsize);
+
+    SHA1(buffer, fsize, temp);
 	
+	//
+	// Write the SHA-1 digest bytes in human-readable form to a string
 	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
+	//
 	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
         sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
     }
 
+	//
+	// Copy human-readable output string to function user-returned variable
+	//
 	memcpy(sha1, ostr, (SHA_DIGEST_LENGTH * 2) + 1);
 
-    delete t;
-    delete buffer;
+	//
+	// Free alloc'd memory
+	//
+	free(buffer);
 }
 
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) {
