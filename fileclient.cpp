@@ -280,6 +280,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 	char * sha1buf = (char *) malloc((SHA_DIGEST_LENGTH * 2) + 1);
 	memset(sha1buf, 0, (SHA_DIGEST_LENGTH * 2) + 1);
 	char * pktToChecksum;
+    int firstloop = 0;
 
 	//
 	// Get hash digest of filename to send
@@ -333,7 +334,6 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
         if(i%100 == 0) {
             usleep(250000);
         }
-        //cout << "sending packet " << dataPkt.packetNum << endl;
 		if ((incomingp = sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested)) != NULL) {
 			incoming = string(incomingp);
 		}
@@ -344,20 +344,24 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 
     while(1) {
         cout << "in here" << endl;
-        readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
-        if(sock ->timedout() == true) {
-            cout << "timeout " << endl;
-            break;
+        if(firstloop) {
+            readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
+            if(sock ->timedout() == true) {
+                cout << "timeout " << endl;
+                break;
+            }
+            incomingMessage[readlen] = '\0'; // make sure null terminated
+            string incoming(incomingMessage);
         }
-        incomingMessage[readlen] = '\0'; // make sure null terminated
-        string incoming(incomingMessage);
         cout << "incoming " << incoming << endl;
         if (incoming[0] == '!') {
+            firstloop++;
          // All packets for this file succesfully received
          // Commence end2end check
 			cout << "END2END" << endl;
 			clientEndToEnd(filename, dirname, sock);  
         } else if (incoming[0] == '@') {
+            firstloop++;
             do {
              // Packet(s) requested by server
              int requestedPacketNum   = stoi(incoming.substr(1,16));
@@ -377,7 +381,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 			 }
          } while (incoming[0] == '@');
         } else {
-         cout << "Extraneous packet received." << endl;
+            firstloop++;
+            cout << "Extraneous packet received." << endl;
         }
     }
 }

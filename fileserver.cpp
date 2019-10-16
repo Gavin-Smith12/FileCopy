@@ -375,6 +375,7 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
 int endCheck(string file_name, string file_hash, string directory) {
     //Create sha1
     char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
+    //file_name = directory + "/" + file_name;
     file_name = directory + "/" + file_name;
     const char *filename = file_name.c_str();
 
