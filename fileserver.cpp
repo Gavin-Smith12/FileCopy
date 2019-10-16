@@ -431,7 +431,7 @@ void sha1file(const char *filename, char *sha1) {
 
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) {
 
-    C150NastyFile currentFile(0); //Nastyfile object for file operations
+    C150NastyFile currentFile(fileNasty); //Nastyfile object for file operations
     ssize_t readlen; //Readlen for checking reading length
     char incomingMessage[512]; //Incoming message buffer
     //packetLostNum is number of packet in the sequence that was lost
