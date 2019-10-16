@@ -5,14 +5,14 @@
 #define MAX_DATA_SIZE 400
 
 struct initialPacket {
-	char packet_type = '8';               // 1
+	char packetType = '8';               // 1
 	char checksum[SHA_DIGEST_LENGTH * 2]; // 40
     char numPackets[16];			      // 4
 	char filename[MAX_FILE_NAME];
 };
 
 struct dataPacket {
-	std::string packet_type = "9";					  // 1 bytes
+	std::string packetType = "9";					  // 1 bytes
 	std::string checksum;     // 40 bytes
     std::string fileNameHash; // 40 bytes
     std::string packetNum; 					  // 4 bytes
