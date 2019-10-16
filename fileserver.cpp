@@ -521,10 +521,12 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			currentFile.fopen(currFileName.c_str(), "w");
 		}
 
-		currentFile.fseek(399 * (packetNum - 1), SEEK_SET);
-
-        cout << "writing packet " << packetNum << endl;
-        if(!currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()))
+        cout << "Packet number is " << packetNum << endl; 
+		if(currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
+            perror("fseek failed\n");
+        //cout << "Current Data Is " << data << endl;
+        cout << "Writing at " << 399 * (packetNum - 1) << endl;
+        if(currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()) < data.length())
             perror("Could not write to file\n");
         currentFile.fclose();
 

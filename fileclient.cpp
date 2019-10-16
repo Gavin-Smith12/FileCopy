@@ -330,8 +330,9 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		char *incomingp;
         //cout << data_message << endl;
         if(i%100 == 0) {
-            sleep(1);
+            usleep(250000);
         }
+        //cout << "sending packet " << dataPkt.packetNum << endl;
 		if ((incomingp = sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested)) != NULL) {
 			incoming = string(incomingp);
 		}
