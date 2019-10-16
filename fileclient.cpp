@@ -159,7 +159,7 @@ main(int argc, char *argv[]) {
 		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 networkNasty);
         C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
-        sock -> turnOnTimeouts(2000);
+        sock -> turnOnTimeouts(3000);
         c150debug->printf(C150APPLICATION,"Ready to accept messages");
         sock -> setServerName(argv[1]); 
 		//
@@ -343,11 +343,15 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
     int readlen = 0;
 
     while(1) {
+        cout << "in here" << endl;
         readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
-        if(sock ->timedout() == true)
+        if(sock ->timedout() == true) {
+            cout << "timeout " << endl;
             break;
+        }
         incomingMessage[readlen] = '\0'; // make sure null terminated
         string incoming(incomingMessage);
+        cout << "incoming " << incoming << endl;
         if (incoming[0] == '!') {
          // All packets for this file succesfully received
          // Commence end2end check
@@ -387,13 +391,18 @@ void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *so
 	string filepath = string(dirname) + string(filename);
 	sha1file(filepath.c_str(), sha1);
 
+    cout << "file is " << filepath << endl;
+    cout << "sha of file is " << string(sha1) << endl;
+
 	// Concatenate strings to create message text to send
 	string message = REQ_CHK + string(sha1) + string(filename);
 
 	// Send the message REQ_CHK to the server, beginning the end-to-end protocol
 	bool readRequested = true;
+    cout << "Message is " << message << endl;
 	string serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
 
+    cout << "server response " << serverResponse << endl;
 	//
 	// Parse server response for end2end protocol code and respond to server
 	//
