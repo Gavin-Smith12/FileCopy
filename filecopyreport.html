@@ -1,0 +1,281 @@
+<!DOCTYPE HTML>
+<!-- 
+ **********************************************************
+
+             TUFTS COMP 117 HOMEWORK ASSIGNMENT
+
+        Fill in your name, e-mail and answers to questions
+        in the sections provided below.
+
+          All questions are marked up: <li class="q">
+          All answers are marked up:   <li class="a">
+
+
+     PLEASE DO NOT MODIFY ANY THING OTHER THAN THE 
+     NAME, E-MAIL, AND ANSWER FIELDS (you may also add
+     css declarations in the <head> if you need them,
+     but usually you won't.
+
+ **********************************************************
+ -->
+
+
+<html>
+<head>
+<meta charset="utf-8"> 
+<title>Tufts COMP 117 Assignment &#8212; File Copy Project Report</title>
+<link rel="stylesheet" type="text/css" href="http://www.cs.tufts.edu/comp/117/style/homework.css" />
+</head>
+
+<body class="homework">
+
+
+<!-- ******************************************************
+	   YOU MUST FILL IN YOUR NAME, UTLN AND EMAIL BELOW!!
+         (You may copy this from an earlier assignment
+                         if you like)
+
+     ****************************************************** -->
+
+
+<div class="student">
+<p>
+<span class="label">Student1 name: </span>
+Gavin Smith
+<br>
+
+<span class="label">UTLN: </span>
+gsmith08
+<br>
+
+<span class="label">E-mail: </span>
+<!-- DON'T FORGET UP UPDATE THE MAILTO: URI BELOW ALONG WITH
+     YOUR EMAIL IN THE ANCHOR.  IT SHOULD LOOK LIKE:
+ <a href="mailto:lady.gaga@cs.tufts.edu">lady.gaga@cs.tufts.edu</a>
+--> 
+
+<a href="mailto:gavin.smith@tufts.edu">gavin.smith@tufts.edu</a>
+<br>
+<br>
+<br>
+<span class="label">Student2 name: </span>
+Ravi Serota
+<br>
+<span class="label">UTLN: </span>
+rserot01
+<br>
+
+<span class="label">E-mail: </span>
+<!-- DON'T FORGET UP UPDATE THE MAILTO: URI BELOW ALONG WITH
+     YOUR EMAIL IN THE ANCHOR.  IT SHOULD LOOK LIKE:
+ <a href="mailto:lady.gaga@cs.tufts.edu">lady.gaga@cs.tufts.edu</a>
+--> 
+
+<a href="mailto:ravi.serota@gmail.com">ravi.serota@gmail.edu</a>
+
+<br>
+</p>
+</div>
+
+
+
+
+<div class="UpperLeftHeader">
+<p>Tufts COMP 117 (Spring 2019):
+<br>
+Internet-scale Distributed Systems
+</p>
+</div>
+
+
+<!-- - - - - - - - - - - - - - - - - - - - - - - -
+		HOMEWORK TITLE
+  - -  - - - - - - - - - - - - - - - - - - - - - - -->
+
+
+<div class="headerdiv">
+<h1>
+Tufts COMP 117:<br>
+File Copy Project Report
+</h1>
+</div>
+
+<!-- ******************************************************
+
+              PLEASE ANSWER QUESTIONS IN THE SECTIONS
+	      LABELED class="a" (for answer)
+
+     ****************************************************** -->
+
+
+
+
+<div class="main">
+
+<h2 id="questions">Questions</h2>
+<!-- - - - - - - - - - - - - - - - - - - - - - - -
+		QUESTION
+  - -  - - - - - - - - - - - - - - - - - - - - - - -->
+<div class="qa">
+
+<ol class="qa">
+<li class="q">What are the highest "nastiness" levels at which you believe your program will
+successfully copy an entire directory full of files? (We will test your programs using those levels
+on both the client and the server; if all you got working
+was the end-to-end check, then please tell us how to test your work. <em>Also: if high network nastiness messes up your ability to deal with file nastiness, you can give us two pairs: e.g. Test my client and server with networknastiness=4 and filenastiness=1 or networknastiness=0 and filenastiness=3)</em></li>
+<li class="a">
+<!-- replace XX and YY with the actual values -->
+Please test my client and server with: networknastiness=3 and filenastiness=0.
+</li>
+
+<li class="q">Is there anything else we should
+know about testing your code, or what you expect it to do
+(beyond what's explained in your report below)?</li>
+<li class="a">
+No, everything should be explained by the report below.
+</li>
+
+<li class="q">Did you get help from anyone other than your teammate? If "yes", then briefly explain who helped you and how.</li>
+<li class="a">
+No we did not receive help from any outside person.
+</li>
+
+
+<li class="q">(optional) Do you have any other comments on this assignment (e.g. was it worthwhile, what did you learn from it, do you have suggestions for improvment if the course is offered again)?</li>
+<li class="a">
+I thought this project was definitely worthwhile because it required a lot of 
+prior planning and forethought to be successful. Even though we spent a lot
+of time planning out our protocol there were still situations that we had not
+considered, highlighting how difficult it is to fully flesh out a functional
+protocol.
+</li>
+
+</ol>
+
+<!-- * * * * * * * * * * * * * * * * * * * * * -->
+<!--            REPORT GOES HERE               -->
+<!-- * * * * * * * * * * * * * * * * * * * * * -->
+
+<h2 id="reportbody">Report</h2>
+
+<!-- Delete the entire paragraph below 
+     and replace it with your report. (Do NOT
+     keep the color:grey styling on your report! :-) -->
+
+<p style="color:grey"> 
+<h3>What did we do? What worked and what didn't?</h3>
+<p>Our implementation of FileCopy can be seen as similar to the implementation
+of TCP. It works by checking which packets have been delivered and written to
+the new file. Then after all packets have been written there is another end
+to end check to fully ensure that the file was written correctly. The thing
+that worked best was our invariant that a file will not be copied over until
+the previous file is fully copied and checked to be correct. Having this invariant
+in place removes the possibility of extraneous packets coming later on and also 
+removes confusion for both the server and the client. Another thing that worked was making sure that our writing to the file is idempotent. Initially we had the 
+write append the data to the file, but this does not work in cases where packets
+are dropped and have to be written again. Instead we used fseek to get to the 
+correct place in the file to ensure that the data is always being written to the correct place. This will be further addressed later but the things that did not 
+work mostly stemmed from misunderstandings of the spec. We had issues with writing
+all of the files on nastiness 0 and still dropping packets, then later realized
+that the spec specified that if you write too many packets without receiving them packets will still drop. We would have saved a considerable amount of time if we
+had more thoroughly read the instructions.</p>
+<h3>What cases does our code handle?</h3>
+<p>As of now our code can handle copying of files up to network nastiness 3. 
+We have tested this with very large files and the files are still copied relatively quickly.</p>
+<h3>Description of our protocol</h3>
+<h4>The sequence of packets sent</h4>
+<p>In the case where there is no file or network nastiness our client will first
+send a packet to the server that tells it which file is being copied along with how
+many packets will be read in. This packet serves the purpose of letting the server 
+go into a state of continuous reading until all of the packets have been received 
+correctly, and also telling the server how many packets will need to be read in.
+Next the client reads from the file and divides up the data into the appropriate amount of packets. The client then sends packets to the server, sleeping for a 
+quarter of a second every 100 packets to give the server time to read in packets.
+From there the server will read in all of the packets, and after receiving each one
+it will write it immediately to the correct file. During this writing the server 
+keeps track of how many packets are being written to the file with an array that
+marks written packets as 1 and non-written packets as 0, so after it is done
+receiving packets it knows if it needs to request any more packets. In the case
+where all packets were written to the file the server tells the client that it is 
+done and that the client can begin the final end to end check. In the case where 
+there are some packets that were not written to the file the server loops
+through the check-array and requests any packets that are not marked as written.
+During this time the client is waiting for a confirmation from the server, so it 
+will keep sending requested packets to the server until it is told to start 
+the end to end check. Our end to end check works the same as it did in the
+preliminary assignment where the client sends a message to the server containing 
+the hash of the file, then the server takes that hash and compares it to the hash
+of the newly copied file and reports back to the client whether they are the same.
+Then the client acknowledges this and the end to end check is completed (under 
+our protocol this end to end check should never fail). After all of this is 
+completed the client will restart the process for the next file in the directory.
+</p>
+<h4>Structure of the packets</h4>
+<p>There are several types of packets that we will send. The first is the packet that 
+is sent to indicate the beginning of the copying of a file. This packet begins 
+with a code '8' that indicates what type of packet it is, then is a char array
+of length 16 which tells the server how many packets are going to be sent to 
+copy the file, and then finally ends with a string which contains the full file
+name of the file being copied.</p>
+<p>The second type of packet is the data packet that the client sends to the 
+server. This packet again starts with a code '9' to indicate its packet type,
+then contains a SHA1 hash of the file name of the file being copied, and then
+the number packet in the sequence which this is (so that the server knows where
+to write in the file and to keep track of the packets which have been received),
+then ends with the data which is 399 bytes long. The server then writes this
+data to the file and notes that it has been successfully written.</p>
+<p>The third type of packet is sent from the server to the client to either
+let it know that another packet needs to be sent, or that all packets have
+been successfully written. These packets begin with '!' if all packets have
+been written, or '@' to request another packet. The '!' packet then also
+contains the hash of the file name of the file that is done. The '@' contains
+the packet number that needs to be sent again along with the hash of the file 
+name.</p>
+<p>The last types of packets are those that are sent in the end to end check.
+The initial packet begins with a '0' and tells the server to begin an end to end
+check and then also contains the filename and a hash of the file itself. The server
+gets this packet and compares the hash of the file with the hash of the file in
+the target directory and then sends back a packet beginning with '2' if the 
+check was successful and '3' if the check failed (and then the hash of the 
+file name afterwards). The client responds with an acknowledgment of the success
+or failure with another packet that begins with '5' if successful and '6' if
+failed, and then the file name. The server responds with a final acknowledgement
+packet that begins with '7' and then has the file name.</p>
+<h4>Approach to dealing with lost packets</h4>
+<p>Our approach to dealing with lost packets is that the server keeps track
+of the packets that have been successfully written to the file with an array.
+After the client stops sending packets the server goes through this array
+to check what packets have not been written and then asks the client for these
+packets to be sent again. This process repeats over and over until the server
+knows that all packets have been written to the file correctly. This is aided
+by the fact that we do not start copying another file until the previous one
+is completed, so whether or not packets come out of order does not matter. Also
+we use fseek to write to the file, so if packets are sent multiple times or 
+sent in the wrong order they will always be written to the same place in the file.
+</p>
+<h4>Invariants</h4>
+<p>As stated before, we do not copy multiple files at once. This invariant helps
+us be confident that we are always getting packets from the right file and helps
+us to be confident that a file has been fully copied (i.e. we wont ever miss a packet or something). We do also rename the files to have the ".tmp" extension 
+that only changes when the end to end check is complete, so once they are renamed
+we know that the file copy happened correctly, but as stated before our checks
+make sure that this check should always be correct anyway. If the end to end check
+could be wrong then we could run into the scenario where we have to figure out
+where the errors in the file are, so instead by doing what we do we ensure that
+we always know what parts of the file have not been written yet.</p>
+<h3>Bugs and Shortcomings</h3>
+<p></p>
+<h3>What we learned</h3>
+<p>The first thing that we learned is to read over the spec many times to make
+sure we have a full understanding of it, and then when we have a question or
+problem to reference the spec to see if it contains the answer. We spent a 
+considerable amount of time confused as to why packets were being dropped
+with network nastiness of 0, only to later see that the spec says that
+if too many packets are sent without being received some will be dropped. We fixed
+this issue by putting a sleep after a certain amount of packets are written. </p>
+</p>
+
+</div>
+</div>
+</body>
+</html>
