@@ -87,10 +87,11 @@ void checkDirectory(char *dirname);
 char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, bool readRequested);
 void sha1file(const char *filename, char *sha1);
 void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock);
-void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock);
+void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock);
 void sha1string(const char *input, char *sha1);
+void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *sock);
 // void sendreceiveprint()
-// void clientEndToEnd();
+
 
 
 
@@ -215,13 +216,13 @@ void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock) {
 		if (ret == NULL) {
 			perror("Cannot open file.");
 		} else {
-			readAndSendFile(nastyFile, sourceFile -> d_name, sock);
+			readAndSendFile(nastyFile, sourceFile -> d_name, dirName.c_str(), sock);
 			nastyFile.fclose();
 		}
 	}
 }
 
-void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSocket *sock) {
+void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock) {
 	int fsize, numDataPackets;
 	bool readRequested = false;
 
@@ -350,8 +351,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
         if (incoming[0] == '!') {
          // All packets for this file succesfully received
          // Commence end2end check
-         //clientEndToEnd()
-            cout << "END2END" << endl;
+			cout << "END2END" << endl;
+			clientEndToEnd(filename, dirname, sock);  
         } else if (incoming[0] == '@') {
             do {
              // Packet(s) requested by server
@@ -366,44 +367,15 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
              assert(readRequested == true);
              incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
                 //cout << "incoming is: " << incoming << endl;
-             if (incoming[0] == '!')
+             if (incoming[0] == '!') {
                  cout << "END2END" << endl;
-                 //clientEndToEnd();
+                 clientEndToEnd(filename, dirname, sock);
+			 }
          } while (incoming[0] == '@');
         } else {
          cout << "Extraneous packet received." << endl;
         }
     }
-
-		// //
-		// // Parse incoming
-		// //
-		// if (incoming[0] == '!') {
-		// 	// All packets for this file succesfully received
-		// 	// Commence end2end check
-		// 	//clientEndToEnd()
-		// 	cout << "END2END" << endl;
-		// } else if (incoming[0] == '@') {
-		// 	do {
-		// 		// Packet(s) requested by server
-		// 		int requestedPacketNum   = stoi(incoming.substr(1,16));
-		// 		string requestedFileName = incoming.substr(16,40);
-		// 		// Resend requested packet
-		// 		data_message = dataPackets[requestedPacketNum - 1];
-
-  //               //cout << "requested packet: " << requestedPacketNum-1 << endl;
-  //               //cout << "data message is " << data_message << endl;
-
-		// 		assert(readRequested == true);
-		// 		incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
-  //               //cout << "incoming is: " << incoming << endl;
-		// 		if (incoming[0] == '!')
-		// 			cout << "END2END" << endl;
-		// 			//clientEndToEnd();
-		// 	} while (incoming[0] == '@');
-		// } else {
-		// 	cout << "Extraneous packet received." << endl;
-		// }
 }
 
 void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *sock) {
