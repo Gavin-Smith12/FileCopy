@@ -406,47 +406,48 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, C150DgmSock
 		// }
 }
 
-/*
-void clientEndToEnd() {
+void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *sock) {
 	
-
 	//
 	// Get the SHA-1 of the file
 	//
 	char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
-	string filepath = dirname + string(sourceFile -> d_name);
+	string filepath = string(dirname) + string(filename);
 	sha1file(filepath.c_str(), sha1);
 
 	// Concatenate strings to create message text to send
-	string msgTxt = string(sha1) + string(sourceFile -> d_name);
+	string message = REQ_CHK + string(sha1) + string(filename);
 
 	// Send the message REQ_CHK to the server, beginning the end-to-end protocol
-	string server_response = sendMessageToServer(msgTxt, REQ_CHK, sock);
+	bool readRequested = true;
+	string serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
 
 	//
 	// Parse server response for end2end protocol code and respond to server
 	//
 	// TODO: Check for filename in messages
-	cout << "server_response[0]" << server_response[0] << endl;
-	if (server_response[0] == CHK_SUCC) { // end2end succeeded
-		*GRADING << "File: " << sourceFile -> d_name << " end-to-end check succeeded, attempt " << 1 << endl;
-		server_response = sendMessageToServer(sourceFile -> d_name, ACK_SUCC, sock);
-	} else if (server_response[0] == CHK_FAIL) { // end2end failed
-		*GRADING << "File: " << sourceFile -> d_name << " end-to-end check failed, attempt " << 1 << endl;
-		server_response = sendMessageToServer(sourceFile -> d_name, ACK_FAIL, sock);
+	cout << "serverResponse[0]" << serverResponse[0] << endl;
+	if (serverResponse[0] == CHK_SUCC) { // end2end succeeded
+		*GRADING << "File: " << filename << " end-to-end check succeeded, attempt " << 1 << endl;
+		message = ACK_SUCC + string(filename);
+		serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
+	} else if (serverResponse[0] == CHK_FAIL) { // end2end failed
+		*GRADING << "File: " << filename << " end-to-end check failed, attempt " << 1 << endl;
+		message = ACK_FAIL + string(filename);
+		serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
 	}
 	//
 	// Check for FIN_ACK, else exit
 	//
-	if (server_response[0] == FIN_ACK) {
+	if (serverResponse[0] == FIN_ACK) {
 		// End-to-end check complete
 		cout << "End-to-end check complete." << endl;
 	} else {
 		// TODO: What should be done here?
+		cout << "Server did not send FIN_ACK" << endl;
 		exit(1);
 	}
 }
-*/
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 //
