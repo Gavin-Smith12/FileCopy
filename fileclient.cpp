@@ -90,12 +90,11 @@ void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock);
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock);
 void sha1string(const char *input, char *sha1);
 void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *sock);
-// void sendreceiveprint()
+int numPacketsFile(C150NastyFile& nastyFile);
+void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock);
 
 
-
-
-// End-to-end protocol message codes 
+// Protocol message codes 
 #define REQ_CHK  '0'
 #define CHK_SUCC '2'
 #define CHK_FAIL '3'
@@ -189,7 +188,6 @@ main(int argc, char *argv[]) {
         cerr << argv[0] << ": caught C150NetworkException: " << e.formattedExplanation() << endl;
     } 
 
-	cout << "END OF MAIN" << endl;
     return 0;
 }
 
@@ -222,14 +220,17 @@ void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock) {
 	}
 }
 
-void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock) {
-	int fsize, numDataPackets;
-	bool readRequested = false;
+//
+// Calculates the number of packets needed to send a given file
+// Returns the number of packets needed
+//
+int numPacketsFile(C150NastyFile& nastyFile) {
 
+	int fsize, numDataPackets;
 	nastyFile.fseek(0, SEEK_END);
 	fsize = nastyFile.ftell();
 	if (fsize == 0) {
-		return; // File empty
+		return fsize; // File empty
 	}
 	if (fsize > MAX_DATA_SIZE - 1) {
 		numDataPackets = (int) (fsize / (MAX_DATA_SIZE - 1));
@@ -240,12 +241,20 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 		numDataPackets = 1;
 	}
 
-	cout << "NUM DATA PACKETS: " << numDataPackets << endl;
+	return numDataPackets;
+}
+
+void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock) {
+	int numDataPackets;
+	bool readRequested = false;
+	char *incomingp;
+
+	numDataPackets = numPacketsFile(nastyFile);
 
 	//
 	// Array holds all dataPackets for this file in case need to resend
 	//
-	string dataPackets[numDataPackets];
+	string *dataPackets = (string *) malloc(sizeof(string) * numDataPackets);
 
 	//
 	// Seek back to beginning for reading
@@ -261,10 +270,15 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 		numPacketsStr = "0" + numPacketsStr;
 	}
 
-    string temp_checksum = "0000011111222223333344444555556666677777";
-    string first_message = initPkt.packet_type + temp_checksum + numPacketsStr + string(filename);
-	assert(readRequested == false);
-	sendMessageToServer(first_message.c_str(), first_message.length(), sock, readRequested);
+    string firstMessage = initPkt.packetType + numPacketsStr + string(filename);
+	assert(readRequested == true);
+	incomingp = sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
+	incoming = string(incomingp);
+	while (incoming[0] != '$') {
+		// Resend initial packet, server did not receive
+		incomingp = sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
+		incoming = string(incomingp);
+	}
 
 	//
 	// TODO: ADD CONFIRMATION OF RECEIPT OF INITIAL PACKET
@@ -279,17 +293,15 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 	char * databuf = (char *) malloc(MAX_DATA_SIZE);
 	char * sha1buf = (char *) malloc((SHA_DIGEST_LENGTH * 2) + 1);
 	memset(sha1buf, 0, (SHA_DIGEST_LENGTH * 2) + 1);
-	char * pktToChecksum;
-    int firstloop = 0;
+    
 
 	//
 	// Get hash digest of filename to send
 	//
 	sha1string(filename, sha1buf);
 	dataPkt.fileNameHash = string(sha1buf);
-	cout << dataPkt.fileNameHash << endl;
 
-	string data_message; 
+	string dataMessage; 
 	int i;
 	string incoming;
 	for(i = 0; i < numDataPackets; i++) {
@@ -300,89 +312,80 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 			dataPkt.packetNum = "0" + dataPkt.packetNum;
 		}	
 		memset(databuf, 0, MAX_DATA_SIZE);
-		int read;
+
+		//
+		// TODO: Make sure this read works properly
+		//		
+		int read = nastyFile.fread(databuf, 1, MAX_DATA_SIZE - 1);
+
 		if (i == numDataPackets - 1) {
 			//
 			// TODO: account for last packet being MAX_DATA_SIZE
 			//
-			read = nastyFile.fread(databuf, 1, fsize % (MAX_DATA_SIZE - 1));
-			cout << "LAST DATABUF SIZE: " << read << endl;
 			readRequested = true;
 		} else {
-			read = nastyFile.fread(databuf, 1, MAX_DATA_SIZE - 1);
+			if (read != MAX_DATA_SIZE - 1) {
+				cerr << "Not enough bytes read by fread" << endl;
+			}
 		}
 
 		dataPkt.data = string(databuf);
 
-		// Checksum rest of packet
-		int pktCheckSize = strlen(((dataPkt.packet_type + dataPkt.fileNameHash + dataPkt.packetNum + dataPkt.data).c_str()));
-		pktToChecksum = (char *) malloc(pktCheckSize); // Does not include this checksum
-		strncpy(pktToChecksum, (dataPkt.packet_type + dataPkt.fileNameHash + dataPkt.packetNum + dataPkt.data).c_str(), pktCheckSize);
-		sha1string(pktToChecksum, sha1buf);
-		dataPkt.checksum = string(sha1buf);
-
 		//
 		// Store and send packet
 		//
-		data_message = dataPkt.packet_type + dataPkt.checksum + dataPkt.fileNameHash 
+		dataMessage = dataPkt.packetType + dataPkt.checksum + dataPkt.fileNameHash 
 						+ dataPkt.packetNum + dataPkt.data;
-		dataPackets[i] = data_message;
-		//cout << data_message << endl;
+		dataPackets[i] = dataMessage;
 		
-		char *incomingp;
-        //cout << data_message << endl;
-        if(i%100 == 0) {
+        if(i % 100 == 0) {
             usleep(250000);
         }
-		if ((incomingp = sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested)) != NULL) {
+		if ((incomingp = sendMessageToServer(dataMessage.c_str(), dataMessage.length(), sock, readRequested)) != NULL) {
 			incoming = string(incomingp);
 		}
     }
+	receiveAndRespond(dataPackets, filename, dirname, sock);
+}
 
+void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock) {
     char incomingMessage[512];
-    int readlen = 0;
+    int readlen = 0, firstloop = 0;
+	string incoming, dataMessage;
+	bool readRequested = true;
 
     while(1) {
-        cout << "in here" << endl;
         if(firstloop) {
             readlen = sock -> read(incomingMessage, sizeof(incomingMessage)-1);
             if(sock ->timedout() == true) {
-                cout << "timeout " << endl;
                 break;
             }
             incomingMessage[readlen] = '\0'; // make sure null terminated
-            string incoming(incomingMessage);
+            incoming = string(incomingMessage);
         }
-        cout << "incoming " << incoming << endl;
         if (incoming[0] == '!') {
             firstloop++;
-         // All packets for this file succesfully received
-         // Commence end2end check
-			cout << "END2END" << endl;
+			// All packets for this file succesfully received
+			// Commence end2end check
 			clientEndToEnd(filename, dirname, sock);  
         } else if (incoming[0] == '@') {
             firstloop++;
             do {
-             // Packet(s) requested by server
-             int requestedPacketNum   = stoi(incoming.substr(1,16));
-             string requestedFileName = incoming.substr(16,40);
-             // Resend requested packet
-             data_message = dataPackets[requestedPacketNum - 1];
+				// Packet(s) requested by server
+				int requestedPacketNum   = stoi(incoming.substr(1,16));
+				string requestedFileName = incoming.substr(16,40);
+				// Resend requested packet
+				dataMessage = dataPackets[requestedPacketNum - 1];
 
-                //cout << "requested packet: " << requestedPacketNum-1 << endl;
-                //cout << "data message is " << data_message << endl;
+				assert(readRequested == true);
+				incoming = string(sendMessageToServer(dataMessage.c_str(), dataMessage.length(), sock, readRequested));
 
-             assert(readRequested == true);
-             incoming = string(sendMessageToServer(data_message.c_str(), data_message.length(), sock, readRequested));
-                //cout << "incoming is: " << incoming << endl;
-             if (incoming[0] == '!') {
-                 cout << "END2END" << endl;
-                 clientEndToEnd(filename, dirname, sock);
-			 }
-         } while (incoming[0] == '@');
+				if (incoming[0] == '!') {
+					clientEndToEnd(filename, dirname, sock);
+				}
+        	} while (incoming[0] == '@');
         } else {
             firstloop++;
-            cout << "Extraneous packet received." << endl;
         }
     }
 }
@@ -404,10 +407,8 @@ void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *so
 
 	// Send the message REQ_CHK to the server, beginning the end-to-end protocol
 	bool readRequested = true;
-    cout << "Message is " << message << endl;
 	string serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
 
-    cout << "server response " << serverResponse << endl;
 	//
 	// Parse server response for end2end protocol code and respond to server
 	//
@@ -422,6 +423,7 @@ void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *so
 		message = ACK_FAIL + string(filename);
 		serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
 	}
+
 	//
 	// Check for FIN_ACK, else exit
 	//
@@ -578,21 +580,16 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
     ssize_t readlen;
     bool sendMessageAgain = true;
 
-	
+	//
 	// Loop until successful read on socket (no timeout)
-	
+	//
     while(sendMessageAgain == true) {
-		// Message is a message code prepended to the message text
-
-        //cout << "MESSAGE IS: " << msg << endl;
-        //cout << "string message size: " << msgSize << endl;
 
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                       "fileclient", msg);
 
 		// Write message to socket
-		//cout << "MSG: " << msg << endl;
-        sock -> write(msg, msgSize); // +1 includes the null
+        sock -> write(msg, msgSize);
 
 		//
 		// Write grading messages to grading log
@@ -616,7 +613,7 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
 			readlen = sock -> read(incomingMsg, 512);
             readlen++;
             readlen--;
-			//cout << readlen << endl;
+
 			//
 			// Keep sending messages if timedout, else check and print messsage
 			// 	and return incoming message string.
@@ -626,9 +623,7 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
 				cout << "TIMEDOUT" << endl;
 			} else {
 				sendMessageAgain = false;
-                //cout << "readlen: " << readlen << endl;
-                //cout << "size: " << sizeof(incomingMsg) << endl;
-                //cout << "incoming message " << incomingMsg << endl;
+
 				//checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
 				return incomingMsg;
 			}
