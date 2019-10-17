@@ -125,7 +125,7 @@ on both the client and the server; if all you got working
 was the end-to-end check, then please tell us how to test your work. <em>Also: if high network nastiness messes up your ability to deal with file nastiness, you can give us two pairs: e.g. Test my client and server with networknastiness=4 and filenastiness=1 or networknastiness=0 and filenastiness=3)</em></li>
 <li class="a">
 <!-- replace XX and YY with the actual values -->
-Please test my client and server with: networknastiness=3 and filenastiness=0.
+Please test my client and server with: networknastiness=3 and filenastiness=4.
 </li>
 
 <li class="q">Is there anything else we should
@@ -179,9 +179,11 @@ work mostly stemmed from misunderstandings of the spec. We had issues with writi
 all of the files on nastiness 0 and still dropping packets, then later realized
 that the spec specified that if you write too many packets without receiving them packets will still drop. We would have saved a considerable amount of time if we
 had more thoroughly read the instructions.</p>
+
 <h3>What cases does our code handle?</h3>
-<p>As of now our code can handle copying of files up to network nastiness 3. 
-We have tested this with very large files and the files are still copied relatively quickly.</p>
+<p>As of now our code can handle copying of files up to network nastiness 3 and
+file nastiness 4. We have tested this with very large files and the files are still copied relatively quickly.</p>
+
 <h3>Description of our protocol</h3>
 <h4>The sequence of packets sent</h4>
 <p>In the case where there is no file or network nastiness our client will first
@@ -264,7 +266,17 @@ could be wrong then we could run into the scenario where we have to figure out
 where the errors in the file are, so instead by doing what we do we ensure that
 we always know what parts of the file have not been written yet.</p>
 <h3>Bugs and Shortcomings</h3>
-<p></p>
+<p>Our code has some memory leakage problems, these don't seem to impact
+the performance of the actual program though. Our major shortcomings are
+that we cannot deal with the highest levels of file and network nastiness.
+With the network nastiness we have problems with making sure that both
+the client and the server are doing the same thing at one time as with 
+how many packets are dropped it is easy to have the client be trying
+to move to another file while the server is still copying packets. Then we 
+cannot deal with the highest level of file nastiness, I am not sure why
+we are not able to deal with this, though I suspect it has to do with that 
+reading might not be consistant and we do not have measures in place to deal
+with this.</p>
 <h3>What we learned</h3>
 <p>The first thing that we learned is to read over the spec many times to make
 sure we have a full understanding of it, and then when we have a question or
@@ -273,6 +285,11 @@ considerable amount of time confused as to why packets were being dropped
 with network nastiness of 0, only to later see that the spec says that
 if too many packets are sent without being received some will be dropped. We fixed
 this issue by putting a sleep after a certain amount of packets are written. </p>
+</p>
+<h3>Our grading documents</h3>
+<p>Since our protocol does not try to send a file again if it fails, our
+grading print statements will not show any repetitions, instead they will
+just highlight when a file has started and when it has ended.</p>
 </p>
 
 </div>

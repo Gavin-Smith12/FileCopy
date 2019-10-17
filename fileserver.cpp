@@ -193,7 +193,6 @@ main(int argc, char *argv[])
 		// Check for protocol code REQ_CHK
 		// Requests an end to end check for a given file
 		if (incoming[0] == REQ_CHK) {
-			cout << "REQ_CHK" << endl;
 			//Get the hash of the file out of the message
 			string file_hash = incoming.substr(1, (SHA_DIGEST_LENGTH * 2));
 			//Get the file name out of the message and add .tmp because it 
@@ -232,7 +231,6 @@ main(int argc, char *argv[])
 		}
 		//If the incomine message is an acknowlegement of failure
 		else if(incoming[0] == ACK_FAIL) {
-			cout << "ACK_FAIL" << endl;
 			//Attach 7 for the final acknowledgement
 			string response = FIN_ACK + incoming.substr(1);
 				string file_name = incoming.substr(1);
@@ -252,7 +250,7 @@ main(int argc, char *argv[])
 
             *GRADING << "File: " << pckt1.filename << " starting to receive file" << endl;
 
-            string initAck = INIT_ACK + pckt1.filename;
+            string initAck = INIT_ACK + string(pckt1.filename);
 
             c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
                     initAck.c_str());
@@ -365,7 +363,6 @@ int endCheck(string file_name, string file_hash, string directory) {
     // Allocate SHA-1 buffer
     char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
     
-	// file_name = directory + "/" + file_name;
     file_name = directory + "/" + file_name;
     const char *filename = file_name.c_str();
 
@@ -517,7 +514,6 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                     continue;
                 }
             }
-
 			if (readlen == 0) {
 				c150debug->printf(C150APPLICATION,"Read zero length message, trying again");
 				continue;
@@ -572,7 +568,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 
 void fileCheck(string currFileName, int packetNum, C150NastyFile& currentFile, string data) {
 
-    void* fileNastyCheck = NULL;
+    void* fileNastyCheck = calloc(MAX_DATA_SIZE-1, 1);
     char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
     char *sha2 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
     bool fileCheck = true;
@@ -594,23 +590,27 @@ void fileCheck(string currFileName, int packetNum, C150NastyFile& currentFile, s
         if (currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()) < data.length())
             perror("Could not write to file\n");
 
-        if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
-            perror("fseek failed\n");
+        currentFile.fclose();
+        currentFile.fopen(currFileName.c_str(), "r+");
 
-        if(currentFile.fread(fileNastyCheck, 1, data.length()) < data.length())
-            perror("Could not read from file\n");
+        if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
+           perror("fseek failed\n");
+
+        if(currentFile.fread(fileNastyCheck, 1, (size_t) data.length()) < data.length())
+           perror("Could not read from file\n");
 
         sha1string((char*) fileNastyCheck, sha1);
         sha1string(data.c_str(), sha2);
 
-        if(strcmp(sha1, sha2))
-            fileCheck = false;
+        if(string(sha1) == string(sha2)) 
+           fileCheck = false;
 
         currentFile.fclose();
     } while(fileCheck == true);
 
     free(sha1);
     free(sha2);
+    free(fileNastyCheck);
 }
 
 void sha1string(const char *input, char *sha1) {

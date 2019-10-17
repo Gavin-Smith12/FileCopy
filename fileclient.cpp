@@ -91,7 +91,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 void sha1string(const char *input, char *sha1);
 void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *sock);
 int numPacketsFile(C150NastyFile& nastyFile);
-void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock);
+void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock, string incoming);
 
 
 // Protocol message codes 
@@ -152,13 +152,13 @@ main(int argc, char *argv[]) {
 		// Check that directory supplied exists
         checkDirectory(argv[4]);
 
-		string dirName = string(argv[4]);
+		string dirName = string(argv[4]) + "/";
 
 		networkNasty = atoi(argv[2]);
 		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 networkNasty);
         C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
-        sock -> turnOnTimeouts(3000);
+        sock -> turnOnTimeouts(1000);
         c150debug->printf(C150APPLICATION,"Ready to accept messages");
         sock -> setServerName(argv[1]); 
 		//
@@ -209,7 +209,6 @@ void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock) {
 			continue;          // never copy . or ..
 		}
 		filePath = dirName + string(sourceFile -> d_name);
-		cout << filePath << endl;
 		ret = nastyFile.fopen(filePath.c_str(), "r");
 		if (ret == NULL) {
 			perror("Cannot open file.");
@@ -246,7 +245,7 @@ int numPacketsFile(C150NastyFile& nastyFile) {
 
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock) {
 	int numDataPackets;
-	bool readRequested = false;
+	bool readRequested = true;
 	char *incomingp;
 	string incoming;
 
@@ -271,6 +270,8 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 		numPacketsStr = "0" + numPacketsStr;
 	}
 
+    *GRADING << "File: " << filename << " , beginning transmission, attempt " << 0 << endl;
+
     string firstMessage = initPkt.packetType + numPacketsStr + string(filename);
 	assert(readRequested == true);
 	incomingp = sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
@@ -280,6 +281,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 		incomingp = sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
 		incoming = string(incomingp);
 	}
+    readRequested = false;
 
 	//
 	// TODO: ADD CONFIRMATION OF RECEIPT OF INITIAL PACKET
@@ -312,7 +314,6 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 			dataPkt.packetNum = "0" + dataPkt.packetNum;
 		}	
 		memset(databuf, 0, MAX_DATA_SIZE);
-
 		//
 		// TODO: Make sure this read works properly
 		//		
@@ -338,20 +339,20 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 						+ dataPkt.packetNum + dataPkt.data;
 		dataPackets[i] = dataMessage;
 		
-        if(i % 100 == 0) {
-            usleep(250000);
+        if((i % 100 == 0) and (i != 0)) {
+            usleep(350000);
         }
 		if ((incomingp = sendMessageToServer(dataMessage.c_str(), dataMessage.length(), sock, readRequested)) != NULL) {
 			incoming = string(incomingp);
 		}
     }
-	receiveAndRespond(dataPackets, filename, dirname, sock);
+	receiveAndRespond(dataPackets, filename, dirname, sock, incoming);
 }
 
-void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock) {
+void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock, string incoming) {
     char incomingMessage[512];
     int readlen = 0, firstloop = 0;
-	string incoming, dataMessage;
+	string dataMessage;
 	bool readRequested = true;
 
     while(1) {
@@ -367,6 +368,7 @@ void receiveAndRespond(string *dataPackets, const char *filename, const char *di
             firstloop++;
 			// All packets for this file succesfully received
 			// Commence end2end check
+            *GRADING << "File: " << string(filename) << " transmission complete, waiting for end-to-end check, attempt " << 0 << endl;
 			clientEndToEnd(filename, dirname, sock);  
         } else if (incoming[0] == '@') {
             firstloop++;
@@ -381,6 +383,7 @@ void receiveAndRespond(string *dataPackets, const char *filename, const char *di
 				incoming = string(sendMessageToServer(dataMessage.c_str(), dataMessage.length(), sock, readRequested));
 
 				if (incoming[0] == '!') {
+                    *GRADING << "File: " << string(filename) << " transmission complete, waiting for end-to-end check, attempt " << 0 << endl;
 					clientEndToEnd(filename, dirname, sock);
 				}
         	} while (incoming[0] == '@');
@@ -399,9 +402,6 @@ void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *so
 	string filepath = string(dirname) + string(filename);
 	sha1file(filepath.c_str(), sha1);
 
-    cout << "file is " << filepath << endl;
-    cout << "sha of file is " << string(sha1) << endl;
-
 	// Concatenate strings to create message text to send
 	string message = REQ_CHK + string(sha1) + string(filename);
 
@@ -412,14 +412,12 @@ void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *so
 	//
 	// Parse server response for end2end protocol code and respond to server
 	//
-	// TODO: Check for filename in messages
-	cout << "serverResponse[0]" << serverResponse[0] << endl;
 	if (serverResponse[0] == CHK_SUCC) { // end2end succeeded
-		*GRADING << "File: " << filename << " end-to-end check succeeded, attempt " << 1 << endl;
+		*GRADING << "File: " << filename << " end-to-end check succeeded, attempt " << 0 << endl;
 		message = ACK_SUCC + string(filename);
 		serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
 	} else if (serverResponse[0] == CHK_FAIL) { // end2end failed
-		*GRADING << "File: " << filename << " end-to-end check failed, attempt " << 1 << endl;
+		*GRADING << "File: " << filename << " end-to-end check failed, attempt " << 0 << endl;
 		message = ACK_FAIL + string(filename);
 		serverResponse = string(sendMessageToServer(message.c_str(), message.length(), sock, readRequested));
 	}
@@ -592,18 +590,6 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
         sock -> write(msg, msgSize);
 
 		//
-		// Write grading messages to grading log
-		//
-
-		// File: <name>, beginning transmission, attempt <attempt>
-		// TODO: FILENAME needs to be variable
-		*GRADING << "File: " << "FILENAME" " , beginning transmission, attempt " << 1 << endl;
-
-		// File: <name> transmission complete, waiting for end-to-end check, attempt <attempt>
-		// TODO: FILENAME needs to be variable
-		*GRADING << "File: " << "FILENAME" << " transmission complete, waiting for end-to-end check, attempt " << 1 << endl;
-
-		//
         // Read the response from the server
 		//
 		if (readRequested) {
@@ -620,7 +606,6 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
 			//
 			if((sock -> timedout() == true)) {
 				sendMessageAgain = true;
-				cout << "TIMEDOUT" << endl;
 			} else {
 				sendMessageAgain = false;
 
