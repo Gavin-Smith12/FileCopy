@@ -87,6 +87,6 @@ makedatafile: makedatafile.cpp
 # for forcing complete rebuild#
 
 clean:
-	 rm -f nastyfiletest sha1test makedatafile *.o 
+	 rm -f nastyfiletest sha1test makedatafile fileclient fileserver *.o 
 
 
