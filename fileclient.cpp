@@ -63,6 +63,7 @@
 #include "c150debug.h"
 #include "c150grading.h"
 #include "c150nastyfile.h" 
+#include <vector>
 #include <cassert>
 #include <fstream>
 #include <sstream>
@@ -91,7 +92,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 void sha1string(const char *input, char *sha1);
 void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *sock);
 int numPacketsFile(C150NastyFile& nastyFile);
-void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock, string incoming);
+void receiveAndRespond(vector<string> *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock, string incoming);
 
 
 // Protocol message codes 
@@ -254,7 +255,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 	//
 	// Array holds all dataPackets for this file in case need to resend
 	//
-	string *dataPackets = (string *) malloc(sizeof(string) * numDataPackets);
+	vector<string> *dataPackets = new vector<string> (numDataPackets);
 
 	//
 	// Seek back to beginning for reading
@@ -337,7 +338,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 		//
 		dataMessage = dataPkt.packetType + dataPkt.checksum + dataPkt.fileNameHash 
 						+ dataPkt.packetNum + dataPkt.data;
-		dataPackets[i] = dataMessage;
+		(*dataPackets)[i] = dataMessage;
 		
         if((i % 100 == 0) and (i != 0)) {
             usleep(350000);
@@ -349,7 +350,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 	receiveAndRespond(dataPackets, filename, dirname, sock, incoming);
 }
 
-void receiveAndRespond(string *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock, string incoming) {
+void receiveAndRespond(vector<string> *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock, string incoming) {
     char incomingMessage[512];
     int readlen = 0, firstloop = 0;
 	string dataMessage;
@@ -377,7 +378,7 @@ void receiveAndRespond(string *dataPackets, const char *filename, const char *di
 				int requestedPacketNum   = stoi(incoming.substr(1,16));
 				string requestedFileName = incoming.substr(16,40);
 				// Resend requested packet
-				dataMessage = dataPackets[requestedPacketNum - 1];
+				dataMessage = (*dataPackets)[requestedPacketNum - 1];
 
 				assert(readRequested == true);
 				incoming = string(sendMessageToServer(dataMessage.c_str(), dataMessage.length(), sock, readRequested));
@@ -659,11 +660,14 @@ void sha1file(const char *filename, char *sha1) {
 		perror("Cannot open file.");
 		exit(1);
 	}
-	int fsize = 0;
+	int fsize  = 0;
 	nastyFile.fseek(0, SEEK_END);
 	fsize = nastyFile.ftell();
-	buffer = (unsigned char *) malloc(fsize);
-	nastyFile.fread(buffer, 1, fsize);
+	buffer = (unsigned char *) malloc(fsize * sizeof(unsigned char));
+	nastyFile.rewind();
+	fsize = nastyFile.fread(buffer, 1, fsize);
+	
+	cout << "FSIZE: " << fsize << endl;
 
     SHA1(buffer, fsize, temp);
 	
@@ -672,7 +676,7 @@ void sha1file(const char *filename, char *sha1) {
 	// Taken from website https://memset.wordpress.com/2010/10/06/using-sha1-function/
 	//
 	for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
-        sprintf((char*)&(ostr[i*2]), "%02x", temp[i]);
+        sprintf((char*) &(ostr[i*2]), "%02x", temp[i]);
     }
 
 	//

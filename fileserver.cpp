@@ -407,8 +407,9 @@ void sha1file(const char *filename, char *sha1) {
 	nastyFile.fseek(0, SEEK_END);
 	fsize = nastyFile.ftell();
 	buffer = (unsigned char *) malloc(fsize);
-	nastyFile.fread(buffer, 1, fsize);
-
+	nastyFile.rewind();
+	fsize = nastyFile.fread(buffer, 1, fsize);
+	
     SHA1(buffer, fsize, temp);
 	
 	//
@@ -479,7 +480,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
             if((sock -> timedout() == true) or (packetDone >= numPack)) {
                 packetsLost = 0;
 
-                //Loop through the checking array to see if any packets are missing
+                // Loop through the checking array to see if any packets are missing
                 for (int i = 0; i < numPack; i++) {
                     if (numPacketsReceived[i+1] != 1) {
 
@@ -626,6 +627,7 @@ void sha1string(const char *input, char *sha1) {
 	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1); // Human-readable SHA-1 digest
 	memset(temp, 0, SHA_DIGEST_LENGTH);	// Raw SHA-1 digest buffer
 
+	cout << "STRLEN(INPUT): " << strlen(input) << endl;
     SHA1((const unsigned char *) input, strlen(input), temp);
 	
 	//
