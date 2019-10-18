@@ -85,7 +85,7 @@ using namespace C150NETWORK;  // for all the comp150 utilities
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void checkDirectory(char *dirname);
-char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, bool readRequested);
+string sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, bool readRequested);
 void sha1file(const char *filename, char *sha1);
 void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock);
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock);
@@ -139,7 +139,7 @@ main(int argc, char *argv[]) {
 
      // Variable declarations
      DIR *SRC;
-     
+     C150NastyDgmSocket *sock;
 
      // Make sure command line looks right
      if (argc != 5) {
@@ -158,8 +158,8 @@ main(int argc, char *argv[]) {
 		networkNasty = atoi(argv[2]);
 		c150debug->printf(C150APPLICATION,"Creating C150NastyDgmSocket(nastiness=%d)",
 			 networkNasty);
-        C150NastyDgmSocket *sock = new C150NastyDgmSocket(networkNasty);
-        sock -> turnOnTimeouts(1000);
+        sock = new C150NastyDgmSocket(networkNasty);
+        sock -> turnOnTimeouts(2000);
         c150debug->printf(C150APPLICATION,"Ready to accept messages");
         sock -> setServerName(argv[1]); 
 		//
@@ -172,8 +172,10 @@ main(int argc, char *argv[]) {
       	}
 
 		fileNasty = atoi(argv[3]);
+		
 		// Loop through files in directory, sending each to the servers
 		loopFilesInDir(SRC, dirName, sock);
+
 		// Close the open directory
 		closedir(SRC);
 	}
@@ -189,9 +191,14 @@ main(int argc, char *argv[]) {
         cerr << argv[0] << ": caught C150NetworkException: " << e.formattedExplanation() << endl;
     } 
 
+	delete sock;
     return 0;
 }
 
+/*
+ *
+ *
+ */
 void loopFilesInDir(DIR *SRC, string dirName, C150DgmSocket *sock) {
 
 	//  Loop copying the files
@@ -244,13 +251,21 @@ int numPacketsFile(C150NastyFile& nastyFile) {
 	return numDataPackets;
 }
 
+/*
+ *
+ *
+ */
 void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char *dirname, C150DgmSocket *sock) {
 	int numDataPackets;
 	bool readRequested = true;
-	char *incomingp;
 	string incoming;
 
 	numDataPackets = numPacketsFile(nastyFile);
+
+	// If file is empty, make sure one data packet sends
+	if(numDataPackets == 0) {
+		numDataPackets = 1;
+	}
 
 	//
 	// Array holds all dataPackets for this file in case need to resend
@@ -275,12 +290,10 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 
     string firstMessage = initPkt.packetType + numPacketsStr + string(filename);
 	assert(readRequested == true);
-	incomingp = sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
-	incoming = string(incomingp);
+	incoming  = sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
 	while (incoming[0] != '$') {
 		// Resend initial packet, server did not receive
-		incomingp = sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
-		incoming = string(incomingp);
+		incoming= sendMessageToServer(firstMessage.c_str(), firstMessage.length(), sock, readRequested);
 	}
     readRequested = false;
 
@@ -295,8 +308,7 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
 
 	// Prepare SHA1 digest variables
 	char * databuf = (char *) malloc(MAX_DATA_SIZE);
-	char * sha1buf = (char *) malloc((SHA_DIGEST_LENGTH * 2) + 1);
-	memset(sha1buf, 0, (SHA_DIGEST_LENGTH * 2) + 1);
+	char * sha1buf = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
     
 
 	//
@@ -343,13 +355,21 @@ void readAndSendFile(C150NastyFile& nastyFile, const char *filename, const char 
         if((i % 100 == 0) and (i != 0)) {
             usleep(350000);
         }
-		if ((incomingp = sendMessageToServer(dataMessage.c_str(), dataMessage.length(), sock, readRequested)) != NULL) {
-			incoming = string(incomingp);
-		}
+		incoming = sendMessageToServer(dataMessage.c_str(), dataMessage.length(), sock, readRequested);
     }
+
+	// Free alloc'd memory
+	free(databuf);
+	free(sha1buf);
+
+	// Pass off to receiveAndRespond function
 	receiveAndRespond(dataPackets, filename, dirname, sock, incoming);
 }
 
+/*	
+ *
+ *
+ */
 void receiveAndRespond(vector<string> *dataPackets, const char *filename, const char *dirname, C150DgmSocket *sock, string incoming) {
     char incomingMessage[512];
     int readlen = 0, firstloop = 0;
@@ -392,8 +412,13 @@ void receiveAndRespond(vector<string> *dataPackets, const char *filename, const 
             firstloop++;
         }
     }
+	delete dataPackets;
 }
 
+/*
+ *
+ *
+ */
 void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *sock) {
 	
 	//
@@ -434,154 +459,21 @@ void clientEndToEnd(const char *filename, const char *dirname, C150DgmSocket *so
 		cout << "Server did not send FIN_ACK" << endl;
 		exit(1);
 	}
+	free(sha1);
 }
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-//
-//                     checkAndPrintMessage
-//
-//        Make sure length is OK, clean up response buffer
-//        and print it to standard output.
-//
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
- 
-
-
-void
-checkAndPrintMessage(ssize_t readlen, char *msg, ssize_t bufferlen) {
-    // 
-    // Except in case of timeouts, we're not expecting
-    // a zero length read
-    //
-    if (readlen == 0) {
-      throw C150NetworkException("Unexpected zero length read in client");
-    }
-
-    // DEFENSIVE PROGRAMMING: we aren't even trying to read this much
-    // We're just being extra careful to check this
-    if (readlen > (int)(bufferlen)) {
-      throw C150NetworkException("Unexpected over length read in client");
-    }
-
-    //
-    // Make sure server followed the rules and
-    // sent a null-terminated string (well, we could
-    // check that it's all legal characters, but 
-    // at least we look for the null)
-    //
-    if(msg[readlen-1] != '\0') {
-     throw C150NetworkException("Client received message that was not null terminated");    
-    };
-
-    //
-    // Use a routine provided in c150utility.cpp to change any control
-    // or non-printing characters to "." (this is just defensive programming:
-    // if the server maliciously or inadvertently sent us junk characters, then we 
-    // won't send them to our terminal -- some 
-    // control characters can do nasty things!)
-    //
-    // Note: cleanString wants a C++ string, not a char*, so we make a temporary one
-    // here. Not super-fast, but this is just a demo program.
-    string s(msg);
-    cleanString(s);
-
-    // Echo the response on the console
-
-    c150debug->printf(C150APPLICATION,"PRINTING RESPONSE: Response received is \"%s\"\n", s.c_str());
-    printf("Response received is \"%s\"\n", s.c_str());
-
-}
-
-
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-//
-//                     setUpDebugLogging
-//
-//        For COMP 150-IDS, a set of standards utilities
-//        are provided for logging timestamped debug messages.
-//        You can use them to write your own messages, but 
-//        more importantly, the communication libraries provided
-//        to you will write into the same logs.
-//
-//        As shown below, you can use the enableLogging
-//        method to choose which classes of messages will show up:
-//        You may want to turn on a lot for some debugging, then
-//        turn off some when it gets too noisy and your core code is
-//        working. You can also make up and use your own flags
-//        to create different classes of debug output within your
-//        application code
-//
-//        NEEDSWORK: should be factored into shared code w/pingserver
-//        NEEDSWORK: document arguments
-//
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
- 
-void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
-
-     //   
-     //           Choose where debug output should go
-     //
-     // The default is that debug output goes to cerr.
-     //
-     // Uncomment the following three lines to direct
-     // debug output to a file. Comment them
-     // to default to the console.
-     //
-     // Note: the new DebugStream and ofstream MUST live after we return
-     // from setUpDebugLogging, so we have to allocate
-     // them dynamically.
-     //
-     //
-     // Explanation: 
-     // 
-     //     The first line is ordinary C++ to open a file
-     //     as an output stream.
-     //
-     //     The second line wraps that will all the services
-     //     of a comp 150-IDS debug stream, and names that filestreamp.
-     //
-     //     The third line replaces the global variable c150debug
-     //     and sets it to point to the new debugstream. Since c150debug
-     //     is what all the c150 debug routines use to find the debug stream,
-     //     you've now effectively overridden the default.
-     //
-     ofstream *outstreamp = new ofstream(logname);
-     DebugStream *filestreamp = new DebugStream(outstreamp);
-     DebugStream::setDefaultLogger(filestreamp);
-
-     //
-     //  Put the program name and a timestamp on each line of the debug log.
-     //
-     c150debug->setPrefix(argv[0]);
-     c150debug->enableTimestamp(); 
-
-     //
-     // Ask to receive all classes of debug message
-     //
-     // See c150debug.h for other classes you can enable. To get more than
-     // one class, you can or (|) the flags together and pass the combined
-     // mask to c150debug -> enableLogging 
-     //
-     // By the way, the default is to disable all output except for
-     // messages written with the C150ALWAYSLOG flag. Those are typically
-     // used only for things like fatal errors. So, the default is
-     // for the system to run quietly without producing debug output.
-     //
-     c150debug->enableLogging(C150APPLICATION | C150NETWORKTRAFFIC | 
-                  C150NETWORKDELIVERY); 
-}
-
-char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, bool readRequested) {
+string sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, bool readRequested) {
 	//
 	// Declare variables
 	//
-    char *incomingMsg = NULL; 
+    char *incomingMsg = (char *) malloc(512); // MAX_PACKET_SIZE
     ssize_t readlen;
     bool sendMessageAgain = true;
 
 	//
 	// Loop until successful read on socket (no timeout)
 	//
+	
     while(sendMessageAgain == true) {
 
         c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
@@ -594,9 +486,10 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
         // Read the response from the server
 		//
 		if (readRequested) {
-			incomingMsg = (char *) malloc(512); // MAX_PACKET_SIZE
+			
 			c150debug->printf(C150APPLICATION,"%s: Returned from write, doing read()",
 				"pingclient");
+			memset(incomingMsg, 0, 512);
 			readlen = sock -> read(incomingMsg, 512);
             readlen++;
             readlen--;
@@ -608,16 +501,16 @@ char *sendMessageToServer(const char *msg, size_t msgSize, C150DgmSocket *sock, 
 			if((sock -> timedout() == true)) {
 				sendMessageAgain = true;
 			} else {
-				sendMessageAgain = false;
-
-				//checkAndPrintMessage(readlen, incomingMsg, sizeof(incomingMsg));
-				return incomingMsg;
+				break;
 			}
 		} else {
 			sendMessageAgain = false;
 		}
     }
-    return incomingMsg;
+	string incomingMsgStr = string(incomingMsg);
+    free(incomingMsg);
+
+	return incomingMsgStr;
 }
 
 void checkDirectory(char *dirname) {
@@ -633,7 +526,10 @@ void checkDirectory(char *dirname) {
   }
 }
 
-
+/*
+ *
+ *
+ */
 void sha1file(const char *filename, char *sha1) {
 
 	//
@@ -666,8 +562,6 @@ void sha1file(const char *filename, char *sha1) {
 	buffer = (unsigned char *) malloc(fsize * sizeof(unsigned char));
 	nastyFile.rewind();
 	fsize = nastyFile.fread(buffer, 1, fsize);
-	
-	cout << "FSIZE: " << fsize << endl;
 
     SHA1(buffer, fsize, temp);
 	
@@ -690,6 +584,10 @@ void sha1file(const char *filename, char *sha1) {
 	free(buffer);
 }
 
+/*
+ *
+ *
+ */
 void sha1string(const char *input, char *sha1) {
 	//
 	// Declare variables
