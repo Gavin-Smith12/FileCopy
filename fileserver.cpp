@@ -409,6 +409,7 @@ void sha1file(const char *filename, char *sha1) {
 	buffer = (unsigned char *) malloc(fsize);
 	nastyFile.rewind();
 	fsize = nastyFile.fread(buffer, 1, fsize);
+	nastyFile.fclose();
 	
     SHA1(buffer, fsize, temp);
 	
@@ -534,7 +535,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                 continue;
 
             //If the packet does not contain any data do not read data
-			if(incoming.length() > 57)
+			if(incoming.length() >= 57)
 				data = incoming.substr(57).c_str();
 
 			cleanString(incoming);            // c150ids-supplied utility: changes
