@@ -284,7 +284,12 @@ problem to reference the spec to see if it contains the answer. We spent a
 considerable amount of time confused as to why packets were being dropped
 with network nastiness of 0, only to later see that the spec says that
 if too many packets are sent without being received some will be dropped. We fixed
-this issue by putting a sleep after a certain amount of packets are written. </p>
+this issue by putting a sleep after a certain amount of packets are written. We 
+also learned that we should have probably planned more exactly beforehand as not
+doing this resulted in some functions that are probably too long, but having
+already written it would be difficult and introduce bugs to fix it now. Planning
+more specifically beforehand we could have spaced out functionality in a more
+suitable manner.</p>
 </p>
 <h3>Our grading documents</h3>
 <p>Since our protocol does not try to send a file again if it fails, our
