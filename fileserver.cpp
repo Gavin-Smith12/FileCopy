@@ -356,9 +356,10 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]) {
 
 }
 
-// Function takes in information about the file and returns a status code 
-// Status code: 2 for success
-// 				3 for failure
+/* Function takes in information about the file and returns a status code 
+ * Status code: 2 for success
+ *				3 for failure
+ */
 int endCheck(string file_name, string file_hash, string directory) {
     // Allocate SHA-1 buffer
     char *sha1 = (char *) calloc((SHA_DIGEST_LENGTH * 2) + 1, 1);
@@ -377,13 +378,16 @@ int endCheck(string file_name, string file_hash, string directory) {
         return 3;
 }
 
+/* Function takes in a filename and a sha1 buffer and does not return anything
+ * Produces a SHA of the file given by the filename and puts that SHA value
+ * into the given buffer.
+ */
+
 void sha1file(const char *filename, char *sha1) {
 
 	//
 	// Declare variables
 	//
-    // ifstream *t;
-    // stringstream *buffer;
 	unsigned char * buffer;
 	C150NastyFile nastyFile(fileNasty);
 	unsigned char temp[SHA_DIGEST_LENGTH];
@@ -431,6 +435,11 @@ void sha1file(const char *filename, char *sha1) {
 	//
 	free(buffer);
 }
+
+/* Function takes in a packet struct, a socket, and a directory.
+ * Main function for reading in packets of data, reads and writes all packets
+ * that client sends, and reports back to client any packets it did not receive.
+ */
 
 int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) {
 
@@ -568,6 +577,11 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
     return 0;
 }
 
+/* Function takes in the current filename, the packet that is being checked,
+ * the nastyfile object, and the data of the packet.
+ * Writes the packet data to the file and makes sure it was written correctly.
+ */
+
 void fileCheck(string currFileName, int packetNum, C150NastyFile& currentFile, string data) {
 
     void* fileNastyCheck = calloc(MAX_DATA_SIZE-1, 1);
@@ -589,21 +603,25 @@ void fileCheck(string currFileName, int packetNum, C150NastyFile& currentFile, s
         if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
             perror("fseek failed\n");
 
+        //Write the data to the file
         if (currentFile.fwrite((void*) data.c_str(), 1, (size_t) data.length()) < data.length())
             perror("Could not write to file\n");
 
         currentFile.fclose();
         currentFile.fopen(currFileName.c_str(), "r+");
 
+        //Seek back to where the data was written.
         if (currentFile.fseek(399 * (packetNum - 1), SEEK_SET))
            perror("fseek failed\n");
 
+       //Read back the data that was just written
         if(currentFile.fread(fileNastyCheck, 1, (size_t) data.length()) < data.length())
            perror("Could not read from file\n");
 
         sha1string((char*) fileNastyCheck, sha1);
         sha1string(data.c_str(), sha2);
 
+        //Compare the values what was written to check if write messed up 
         if(string(sha1) == string(sha2)) 
            fileCheck = false;
 
@@ -614,6 +632,11 @@ void fileCheck(string currFileName, int packetNum, C150NastyFile& currentFile, s
     free(sha2);
     free(fileNastyCheck);
 }
+
+/* Function takes in an input and a sha1 buffer.
+ * Gets the sha value of the given input and puts the sha value into the 
+ * sha buffer given as the second argument.
+ */
 
 void sha1string(const char *input, char *sha1) {
 	//
