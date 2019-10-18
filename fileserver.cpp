@@ -651,7 +651,6 @@ void sha1string(const char *input, char *sha1) {
 	memset(ostr, 0, (SHA_DIGEST_LENGTH * 2) + 1); // Human-readable SHA-1 digest
 	memset(temp, 0, SHA_DIGEST_LENGTH);	// Raw SHA-1 digest buffer
 
-	cout << "STRLEN(INPUT): " << strlen(input) << endl;
     SHA1((const unsigned char *) input, strlen(input), temp);
 	
 	//
