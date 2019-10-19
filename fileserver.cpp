@@ -109,6 +109,7 @@ main(int argc, char *argv[])
 	char incomingMessage[512];   // received message data
 	int nastiness;               // how aggressively do we drop packets, etc?
 	char *directory = argv[3];
+    bool alreadyRead = false;    // keeps track if the file has been renamed 
 
 	//
 	// Check command line and parse arguments
@@ -190,6 +191,7 @@ main(int argc, char *argv[])
 			readlen, incoming.c_str());
 
 
+
 		// Check for protocol code REQ_CHK
 		// Requests an end to end check for a given file
 		if (incoming[0] == REQ_CHK) {
@@ -200,7 +202,11 @@ main(int argc, char *argv[])
 			string file_name = incoming.substr((SHA_DIGEST_LENGTH * 2) + 1) + ".tmp";
 
 			// Calls the end to end check which reports 2 with success and 3 with failure
+            // Returns 4 if the file was already renamed
 			int file_status = endCheck(file_name, file_hash, (string)directory);
+
+            if(file_status == 4)
+                continue;
 
 			//Response is the message code with the file name 
 			string response = to_string(file_status) + incoming.substr((SHA_DIGEST_LENGTH * 2) + 1);
@@ -208,11 +214,13 @@ main(int argc, char *argv[])
 			c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
 					response.c_str());
 			sock -> write(response.c_str(), response.length()+1);
+
+            //To make sure that the file has not been renamed yet
+            alreadyRead = false;
 		} 
 
 		// If the incoming message is an acknowledgement of success
 		else if (incoming[0] == ACK_SUCC) {
-
 			// Prepend protocol message FIN_ACK for the final acknowledgement
 			string response = FIN_ACK + incoming.substr(1);
 
@@ -222,8 +230,13 @@ main(int argc, char *argv[])
 			*GRADING << "File: " << file_name << " end-to-end check succeeded" << endl;
 
 			// Rename the file to get rid of the .tmp extension
-			if(rename((file_path + file_name + ".tmp").c_str(), (file_path + file_name).c_str()))
-				cerr << "Could not rename file\n" << endl;
+            if(!alreadyRead) {
+    			if(rename((file_path + file_name + ".tmp").c_str(), (file_path + file_name).c_str()))
+    				cerr << "Could not rename file\n" << endl;
+            }
+
+            //The file has been renamed
+            alreadyRead = true;
 
 			c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
 					response.c_str());
@@ -250,11 +263,11 @@ main(int argc, char *argv[])
 
             *GRADING << "File: " << pckt1.filename << " starting to receive file" << endl;
 
-            string initAck = INIT_ACK + string(pckt1.filename);
+            //string initAck = INIT_ACK + string(pckt1.filename);
 
-            c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
-                    initAck.c_str());
-            sock -> write(initAck.c_str(), initAck.length()+1);
+            //c150debug->printf(C150APPLICATION,"Responding with message=\"%s\"",
+                    //initAck.c_str());
+            //sock -> write(initAck.c_str(), initAck.length()+1);
 
             copyfile(&pckt1, sock, directory);
             *GRADING << "File: " << pckt1.filename << " received, beginning end-to-end check" << endl;
@@ -367,6 +380,18 @@ int endCheck(string file_name, string file_hash, string directory) {
     file_name = directory + "/" + file_name;
     const char *filename = file_name.c_str();
 
+    //Taking off the ".tmp" extension
+    string alreadyRenamed = file_name;
+    for(int i = 0; i < 4; i++) {
+        alreadyRenamed.pop_back();
+    }
+
+    //Check if the file was already renamed
+    ifstream ifile(alreadyRenamed);
+        if (ifile) {
+            return 4;
+        } 
+
 	// Check the given file against the given sha1
     sha1file(filename, sha1);
 
@@ -460,7 +485,6 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
         numPacketsReceived[i] = 0;
     }
     
-
 	//
 	// Get hash of filename from initial packet for comparisons
 	//
@@ -493,6 +517,7 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                 // Loop through the checking array to see if any packets are missing
                 for (int i = 0; i < numPack; i++) {
                     if (numPacketsReceived[i+1] != 1) {
+                        cout << "yup?" << endl;
 
                         packetLostNum = to_string(i+1);
 
@@ -515,7 +540,8 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
                 //done
                 if (packetsLost == 0) {
                     lostPacketMsg = PKT_DONE + fileNameHash;
-                    sleep(1);
+                    usleep(500000);
+                    cout << "sending done" << endl;
                     c150debug->printf(C150APPLICATION,"%s: Writing message: \"%s\"",
                     					"fileclient", lostPacketMsg);
                     sock -> write(lostPacketMsg.c_str(), lostPacketMsg.length());
@@ -540,8 +566,9 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 			//Have to have this before it is cleaned to preserve newlines
 
             //Ignore the packet if it is not a data packet
-            if(incoming[0] != DATA_FCP)
+            if(incoming[0] != DATA_FCP) {
                 continue;
+            }
 
             //If the packet does not contain any data do not read data
 			if(incoming.length() >= 57)
@@ -567,11 +594,15 @@ int copyfile(struct initialPacket* pckt1, C150DgmSocket *sock, char* directory) 
 
         string currFileName = string(directory) + "/" + pckt1->filename + ".tmp";
 
+        cout << "wrinting packet " << packetNum << endl;
         fileCheck(currFileName, packetNum, currentFile, data);
+        cout << "wrote it" << endl;
 
         //Acknowledge that the packet was written correctly
+        if(numPacketsReceived[packetNum] != 1) {
+            packetDone++;
+        }
         numPacketsReceived[packetNum] = 1;
-        packetDone++;
     }
     //This return should never execute.
     return 0;
